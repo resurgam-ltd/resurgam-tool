@@ -93,6 +93,9 @@ input, button, select, textarea { font-family: inherit; }
 .tag-small { background: rgba(150,150,150,0.22); color: rgba(255,255,255,0.55); }
 .tag-micro { background: rgba(150,150,150,0.15); color: rgba(255,255,255,0.4); }
 .tag-dormant { background: rgba(150,150,150,0.1); color: rgba(255,255,255,0.3); }
+.tag-door-owner { background: rgba(194,168,100,0.25); color: var(--accent); }
+.tag-door-people { background: rgba(26,122,74,0.3); color: #5dd49a; }
+.tag-door-covenant { background: rgba(90,110,150,0.3); color: #9ab4e0; }
 .tag-target { background: rgba(194,168,100,0.25); color: var(--accent); }
 .tag-excluded { background: rgba(150,150,150,0.2); color: rgba(255,255,255,0.3); }
 /* Pipeline-status row + IN PIPELINE badges (multi-user pipeline visibility) */
@@ -365,7 +368,7 @@ input, button, select, textarea { font-family: inherit; }
       </div>
       <div class="dp-field">
         <label>Sector Type</label>
-        <select id="dp-sector">
+        <select id="dp-sector" onchange="document.getElementById('dp-tag').value = SECTOR_DOOR_DEFAULT[this.value] || 'Owner'; renderEmailVariantPreview();">
           <option value="professional_services">Professional Services (Legal, Accountancy, Consultancy)</option>
           <option value="construction_trades">Construction &amp; Trades Contractors</option>
           <option value="defence_marine">Defence &amp; Marine Engineering Supply Chain</option>
@@ -480,6 +483,24 @@ input, button, select, textarea { font-family: inherit; }
 
     <!-- ================== 5. ACT ================== -->
     <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin:1.5rem 0 0.5rem;border-bottom:1px solid #C2A86444;padding-bottom:0.35rem;">5. Act</div>
+
+    <div class="dp-grid" style="margin-bottom:0.75rem;">
+      <div class="dp-field">
+        <label>Tag (outreach door)</label>
+        <select id="dp-tag" onchange="renderEmailVariantPreview()">
+          <option value="Owner">Owner</option>
+          <option value="People">People</option>
+          <option value="Covenant">Covenant</option>
+        </select>
+      </div>
+    </div>
+    <div id="dp-email-variant-box" style="background:var(--light);border:1px solid var(--border);border-radius:6px;padding:0.75rem 0.9rem;margin-bottom:0.75rem;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">
+        <span style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);">Email Variant Preview</span>
+        <button type="button" class="dp-btn" style="width:auto;padding:0.2rem 0.6rem;margin:0;font-size:0.62rem;" onclick="copyEmailVariant()">Copy</button>
+      </div>
+      <div id="dp-email-variant-preview" style="font-size:0.8rem;line-height:1.55;white-space:pre-wrap;"></div>
+    </div>
 
     <div class="dp-actions">
       <button class="dp-btn dp-btn-save" onclick="saveCurrentProspect()">Save Prospect</button>
@@ -826,7 +847,7 @@ async function fetchSavedPipelineCache() {
 
 function _updatePipelineStatusBar() {
   const countEl = document.getElementById('pipeline-count');
-  if (countEl) countEl.textContent = savedPipelineCacheByRecordId.size;
+  if (countEl) countEl.textContent = AT_BASE ? savedPipelineCacheByRecordId.size : savedProspects.length;
 }
 
 function startPipelineCachePolling() {
@@ -1264,6 +1285,96 @@ const SECTOR_DOOR_DEFAULT = {
   logistics_warehousing:   'People',
   tech_software:           'Owner',
 };
+
+// [DRAFT] Placeholder copy only — real variant copy arrives from the business
+// documents. Care-group (People) framing is deliberate: staff wellbeing,
+// burnout, retention, absence — never resident/patient-adjacent (see build
+// report, mapping-review item 4).
+const EMAIL_VARIANTS = {
+  Owner: {
+    label: 'Owner — performance & decision pressure',
+    subject: '[DRAFT] A quick thought on performance under pressure at {{company}}',
+    body:
+`[DRAFT — placeholder, not for use]
+
+Hi {{contact}},
+
+Running {{company}} at pace means the pressure lands on you first — and
+decision quality is usually the first thing to slip when it does.
+
+Resurgam works with owners and partners in high-pressure sectors on
+performance under pressure, not generic wellbeing. Worth a short call?
+
+[Placeholder sign-off]`
+  },
+  People: {
+    label: 'People — staff wellbeing, burnout & retention',
+    subject: '[DRAFT] Supporting the team at {{company}} through pressure',
+    body:
+`[DRAFT — placeholder, not for use]
+
+Hi {{contact}},
+
+Teams under sustained pressure show it first in absence and turnover, not
+performance reviews.
+
+Resurgam works with people leads on staff wellbeing, burnout and retention —
+built around your workforce, not your service users. Worth a short call?
+
+[Placeholder sign-off]`
+  },
+  Covenant: {
+    label: 'Covenant — defence & marine supply chain',
+    subject: '[DRAFT] Covenant-aligned support for {{company}}',
+    body:
+`[DRAFT — placeholder, not for use]
+
+Hi {{contact}},
+
+Programme pressure in the defence and marine supply chain falls hardest on
+veteran-dense teams already carrying more than most.
+
+Resurgam's work is Covenant-aligned and built for that context specifically.
+Worth a short call?
+
+[Placeholder sign-off]`
+  }
+};
+
+function _doorTagChip(tag) {
+  if (!tag) return '';
+  var cls = tag === 'People' ? 'tag-door-people' : tag === 'Covenant' ? 'tag-door-covenant' : 'tag-door-owner';
+  return '<span class="tag ' + cls + '">' + tag + '</span>';
+}
+
+function _emailVariantFor(tag, prospect) {
+  const v = EMAIL_VARIANTS[tag] || EMAIL_VARIANTS.Owner;
+  const company = (prospect && prospect.name) || '{{company}}';
+  const contact = (prospect && prospect.contact) || 'there';
+  return {
+    label: v.label,
+    subject: v.subject.replace('{{company}}', company),
+    body: v.body.replace(/\{\{company\}\}/g, company).replace(/\{\{contact\}\}/g, contact)
+  };
+}
+
+function renderEmailVariantPreview() {
+  const tagEl = document.getElementById('dp-tag');
+  const box = document.getElementById('dp-email-variant-preview');
+  if (!tagEl || !box) return;
+  const v = _emailVariantFor(tagEl.value, currentProspect);
+  box.textContent = 'Subject: ' + v.subject + '\n\n' + v.body;
+}
+
+function copyEmailVariant() {
+  const tagEl = document.getElementById('dp-tag');
+  if (!tagEl) return;
+  const v = _emailVariantFor(tagEl.value, currentProspect);
+  const text = 'Subject: ' + v.subject + '\n\n' + v.body;
+  navigator.clipboard.writeText(text).then(function() {
+    _showPipelineToast('Email variant copied (DRAFT placeholder)');
+  }).catch(function() {});
+}
 
 // Human-readable SIC descriptions for display
 const SIC_DESCRIPTIONS = {
@@ -2767,6 +2878,7 @@ async function _fetchBatch(el, isFirst) {
         var cardIsSaved = isSavedLocally(num, name);
         if (cardIsSaved) card.classList.add('saved');
         var tags = '<span class="tag tag-active">active</span><span class="tag tag-target">' + sl + '</span>';
+        tags += _doorTagChip(SECTOR_DOOR_DEFAULT[_sector]);
         if (cardIsSaved) tags += '<span class="tag tag-saved">Saved</span>';
         card.innerHTML =
           '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;">' +
@@ -2941,6 +3053,7 @@ async function _fetchBatch(el, isFirst) {
       if (cardIsSaved) card.classList.add('saved');
       var tags = '<span class="tag tag-active">active</span>';
       tags += '<span class="tag tag-target">' + sl + '</span>';
+      tags += _doorTagChip(SECTOR_DOOR_DEFAULT[_sector]);
       if (cardIsSaved) tags += '<span class="tag tag-saved">Saved</span>';
 
       card.innerHTML =
@@ -3008,6 +3121,7 @@ async function selectProspect(company, cardEl, sectorKey) {
     number: company.company_number,
     type: company.company_type,
     status: company.company_status,
+    date_of_creation: company.date_of_creation || '',
     registeredOffice: _formatChRegisteredOffice(company.registered_office_address)
   };
 
@@ -3032,6 +3146,12 @@ async function selectProspect(company, cardEl, sectorKey) {
     const sel = document.getElementById('dp-sector');
     if (sel) sel.value = sectorKey;
   }
+  // Tag defaults from the sector's door (Owner/People/Covenant); manual
+  // qualification can still override per firm.
+  const tagSel = document.getElementById('dp-tag');
+  if (tagSel) tagSel.value = SECTOR_DOOR_DEFAULT[sectorKey] || 'Owner';
+  currentProspect.tag = tagSel ? tagSel.value : 'Owner';
+  renderEmailVariantPreview();
   // Set Track default — Standard unless currentProspect carries activeSitesCount/track from upstream.
   _setTrackDefault();
 
@@ -3224,7 +3344,7 @@ async function findTradingAddress() {
   if (currentProspect.registeredOffice) body.registeredAddress = currentProspect.registeredOffice;
 
   // Sector: only when we have prospect-specific SIC info from the CH /company fetch.
-  // dp-sector defaults to 'warehouse' for everyone so it's not reliable as a "we know" signal.
+  // dp-sector defaults to the first option for everyone so it's not reliable as a "we know" signal.
   if (currentProspect.sics && currentProspect.sics.length > 0) {
     const firstSic = currentProspect.sics[0];
     const desc = (typeof SIC_DESCRIPTIONS !== 'undefined' && SIC_DESCRIPTIONS[firstSic]) || '';
@@ -4453,6 +4573,10 @@ async function saveCurrentProspect() {
   const siteAreaRaw = parseFloat(document.getElementById('dp-sitearea').value);
   const sector = document.getElementById('dp-sector').value;
   const refNum = 'RSG-' + (Math.floor(Math.random()*90000)+10000);
+  const tagEl = document.getElementById('dp-tag');
+  const tag = (tagEl && tagEl.value) || currentProspect.tag || SECTOR_DOOR_DEFAULT[sector] || 'Owner';
+  const headcountRaw = parseFloat((document.getElementById('dp-headcount') || {}).value);
+  const headcount = Number.isFinite(headcountRaw) && headcountRaw > 0 ? headcountRaw : (Number(currentProspect.headcount) || 0);
 
   const phoneEl = document.getElementById('dp-phone');
   const websiteEl = document.getElementById('dp-website');
@@ -4475,6 +4599,10 @@ async function saveCurrentProspect() {
     name: currentProspect.name,
     address:    keep(formAddress, currentProspect.address || currentProspect.siteAddress),
     sector,
+    tag,
+    headcount,
+    accountsType: currentProspect.accountsType || '',
+    companyAgeYears: _companyAgeYears(currentProspect.date_of_creation),
     siteArea:   (Number.isFinite(siteAreaRaw) && siteAreaRaw > 0)
                   ? siteAreaRaw
                   : (Number(currentProspect.siteArea) || 0),
@@ -4505,11 +4633,23 @@ async function saveCurrentProspect() {
       currentProspect.airtableCompanyId = result.companyId;
       currentProspect.airtableSiteId    = result.siteId;
     }
-    if (!savedProspects.find(p => p.airtableSiteId === result.siteId)) {
+    // Dedupe on the real Airtable site id when one exists; a local-only save
+    // always has an empty siteId, which would otherwise match every other
+    // local-only entry and silently block every save after the first.
+    const alreadySaved = result.siteId
+      ? savedProspects.find(p => p.airtableSiteId === result.siteId)
+      : savedProspects.find(p => p.number && p.number === entry.number);
+    if (!alreadySaved) {
       savedProspects.push(entry);
       localStorage.setItem('prospects_v2', JSON.stringify(savedProspects));
+    } else {
+      Object.assign(alreadySaved, entry);
+      localStorage.setItem('prospects_v2', JSON.stringify(savedProspects));
     }
-    if (result.mode === 'updated-existing') {
+    _updatePipelineStatusBar();
+    if (result.mode === 'local-only') {
+      alert(`${entry.name} saved to the local pipeline.`);
+    } else if (result.mode === 'updated-existing') {
       alert(`Existing site updated to ${siteArea} m² for ${entry.name}.`);
     } else if (result.mode === 'added-to-existing') {
       alert(`New site added under existing Company: ${entry.name}.`);
@@ -4519,9 +4659,12 @@ async function saveCurrentProspect() {
     // Refresh the pipeline cache immediately so the just-written lat/lng (and
     // any other Airtable changes) are available without waiting for the 30s poll.
     fetchSavedPipelineCache();
+    if (!AT_BASE) renderSavedLocal();
   } catch(e) {
     savedProspects.push(entry);
     localStorage.setItem('prospects_v2', JSON.stringify(savedProspects));
+    _updatePipelineStatusBar();
+    if (!AT_BASE) renderSavedLocal();
     alert(`${entry.name} saved locally. Airtable sync failed: ${e.message}`);
   }
 }
@@ -4608,7 +4751,76 @@ function generateFromManual() {
 // SAVED tab renders from the multi-user pipeline cache (savedPipelineCacheByRecordId).
 // Sorted by lastModifiedTime descending (createdTime fallback). Click opens the detail panel
 // populated from cache data; delete is destructive (removes the Airtable record for all users).
+function renderSavedLocal() {
+  // No Airtable base configured — render straight from localStorage
+  // (savedProspects), using array index as identity.
+  const el = document.getElementById('saved-list');
+  if (!el) return;
+  if (!savedProspects.length) {
+    el.innerHTML = '<div class="loading-msg">No prospects in the pipeline yet.</div>';
+    return;
+  }
+  const sorted = savedProspects.map(function(p, idx) { return { p, idx }; })
+    .sort(function(a, b) { return (b.p.savedAt || '').localeCompare(a.p.savedAt || ''); });
+  el.innerHTML = sorted.map(function(row) {
+    const p = row.p, idx = row.idx;
+    const safeName = String(p.name || '').replace(/'/g, "\\'").replace(/</g, '&lt;');
+    const metaBits = [];
+    if (p.sector) metaBits.push(SECTOR_DATA[p.sector] ? SECTOR_DATA[p.sector].label : p.sector);
+    if (p.tag) metaBits.push(p.tag);
+    if (p.headcount) metaBits.push(p.headcount + ' staff (est.)');
+    if (p.refNum) metaBits.push(p.refNum);
+    return '<div class="saved-item" onclick="loadSavedLocal(' + idx + ')">' +
+           '<div><div class="si-name">' + (p.name || '(Unnamed)') + '</div>' +
+           '<div class="si-meta">' + metaBits.join(' | ') + '</div></div>' +
+           '<button class="del-btn" onclick="event.stopPropagation();deleteSavedLocal(' + idx + ', \'' + safeName + '\')">&#10005;</button>' +
+           '</div>';
+  }).join('');
+}
+
+function loadSavedLocal(idx) {
+  const p = savedProspects[idx];
+  if (!p) return;
+  _resetPerProspectEmailState();
+  currentProspect = {
+    name: p.name, address: p.address, number: p.number || '', type: '', status: 'active',
+    registeredOffice: p.registeredOffice || '', phone: p.phone, contact: p.contact,
+    jobTitle: p.jobTitle, email: p.email, website: p.website, track: p.track,
+    tag: p.tag, headcount: p.headcount, siteArea: p.siteArea, location: p.location || null
+  };
+  document.getElementById('welcome-screen').style.display = 'none';
+  document.getElementById('detail-panel').style.display = 'block';
+  document.getElementById('dp-name').textContent = p.name || 'Name unavailable';
+  document.getElementById('dp-meta').textContent = _buildDpMeta({ number: p.number, type: '', date_of_creation: '' });
+  const setVal = function(id, v) { const el = document.getElementById(id); if (el) el.value = v || ''; };
+  setVal('dp-address', p.address);
+  setVal('dp-sitearea', p.siteArea);
+  setVal('dp-contact', p.contact);
+  setVal('dp-job-title', p.jobTitle);
+  setVal('dp-email', p.email);
+  setVal('dp-website', p.website);
+  setVal('dp-phone', p.phone);
+  setVal('dp-headcount', p.headcount);
+  const dpSector = document.getElementById('dp-sector');
+  if (dpSector) dpSector.value = (p.sector && SECTOR_DATA[p.sector]) ? p.sector : 'professional_services';
+  const dpTag = document.getElementById('dp-tag');
+  if (dpTag) dpTag.value = p.tag || SECTOR_DOOR_DEFAULT[p.sector] || 'Owner';
+  renderEmailVariantPreview();
+  _setTrackDefault();
+  const badgesEl = document.getElementById('dp-badges');
+  if (badgesEl) badgesEl.innerHTML = '<span class="tag tag-active">saved</span>' + _doorTagChip(p.tag);
+}
+
+function deleteSavedLocal(idx, name) {
+  if (!confirm('Delete "' + (name || 'this prospect') + '" from the local pipeline?')) return;
+  savedProspects.splice(idx, 1);
+  localStorage.setItem('prospects_v2', JSON.stringify(savedProspects));
+  _updatePipelineStatusBar();
+  renderSavedLocal();
+}
+
 function renderSaved() {
+  if (!AT_BASE) { renderSavedLocal(); return; }
   const el = document.getElementById('saved-list');
   if (!el) return;
   const entries = Array.from(savedPipelineCacheByRecordId.values());
@@ -4695,6 +4907,8 @@ function loadSavedFromCache(recordId) {
   const websiteEff  = pick(p.website, ls && ls.website);
   const areaEff     = (p.siteArea && p.siteArea > 0) ? p.siteArea : ((ls && ls.siteArea) || '');
   const trackEff    = pick(p.track, ls && ls.track);
+  const tagEff       = pick(p.tag, ls && ls.tag) || 'Owner';
+  const headcountEff = (p.headcount && p.headcount > 0) ? p.headcount : ((ls && ls.headcount) || '');
 
   currentProspect = {
     name: p.name || (ls && ls.name) || '',
@@ -4710,6 +4924,8 @@ function loadSavedFromCache(recordId) {
     email: emailEff,
     website: websiteEff,
     track: trackEff,
+    tag: tagEff,
+    headcount: headcountEff,
     activeSitesCount: p.activeSitesCount || 0,
     airtableCompanyId: p.recordId || (ls && ls.airtableCompanyId) || '',
     airtableSiteId:    p.siteRecordId || (ls && ls.airtableSiteId) || ''
@@ -4744,13 +4960,23 @@ function loadSavedFromCache(recordId) {
   if (dpPhone) dpPhone.value = phoneEff;
   const dpSector = document.getElementById('dp-sector');
   if (dpSector) {
-    // Map the human-readable sector label back to a key, fallback to warehouse.
-    let key = 'warehouse';
-    for (const k in SECTOR_DATA) {
-      if (SECTOR_DATA[k] && SECTOR_DATA[k].label === p.sector) { key = k; break; }
+    // Current saves store the sector KEY directly; older records may have
+    // stored the human-readable label instead — check both, else default.
+    let key = 'professional_services';
+    if (p.sector && SECTOR_DATA[p.sector]) {
+      key = p.sector;
+    } else {
+      for (const k in SECTOR_DATA) {
+        if (SECTOR_DATA[k] && SECTOR_DATA[k].label === p.sector) { key = k; break; }
+      }
     }
     dpSector.value = key;
   }
+  const dpTag = document.getElementById('dp-tag');
+  if (dpTag) dpTag.value = tagEff;
+  const dpHeadcount = document.getElementById('dp-headcount');
+  if (dpHeadcount) dpHeadcount.value = headcountEff;
+  renderEmailVariantPreview();
 
   // Track default reads currentProspect.track (just set) so this picks up the saved value.
   _setTrackDefault();
@@ -4852,6 +5078,7 @@ function searchOnline(name) {
 // Kick off pipeline-cache polling once the script has loaded. fetchSavedPipelineCache
 // runs immediately and then every 30s thereafter. Idempotent — safe if called twice.
 startPipelineCachePolling();
+_updatePipelineStatusBar(); // reflect any prospects already saved locally from a prior session
 
 // Re-render the SAVED list on every pipeline-cache refresh. Covers the race
 // where the user opens the SAVED tab before the initial fetch resolves: the
