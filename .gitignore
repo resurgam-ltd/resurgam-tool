@@ -1,0 +1,8 @@
+.env
+*.env
+.env.*
+*.csv
+*data*.json
+.wrangler/
+node_modules/
+.DS_Store
