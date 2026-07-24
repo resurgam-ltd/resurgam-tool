@@ -34,6 +34,13 @@ Purpose: maximum safe autonomy, minimum meaningful gates. The failure this file 
 No Nova asset, colour, key, or copy in this repo, ever, and the reverse. Origin
 separation from Nova's tooling is deliberate (resurgam-ltd.github.io vs Nova's
 serving origin) so localStorage state never crosses.
+Cross-estate forks are stripped BEFORE their first commit to the receiving
+repo — pristine copies of another estate's source never enter a receiving
+repo's history. Do the fork-strip transformation locally or in a private
+scratch area, not inside the destination repo's working tree pre-commit.
+(This repo's own history was rewritten 2026-07-24 after Nova identifiers
+that predated this rule were found post-commit — see the import commit
+message on main for the full account.)
 
 # PUBLIC-REPO DISCIPLINE
 This repo is public (GitHub Pages on the free org plan requires it). Secrets,
