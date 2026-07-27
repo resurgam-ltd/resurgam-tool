@@ -30,6 +30,20 @@ Purpose: maximum safe autonomy, minimum meaningful gates. The failure this file 
 8. DOUBT. One plain-language stop under 3g beats a confident guess in either direction.
 --- end ---
 
+# VERIFY BEFORE ASSERT
+State only what command output has shown this session. Prove claims that matter
+before making them.
+
+VERIFICATION DOCTRINE UPGRADE (2026-07-27): HTTP status alone is never
+verification. A live check passes only when the served content contains an
+expected sentinel unique to the artefact. Standard sentinel: a build stamp
+(short commit hash + build date) embedded in the page, in a meta tag and in
+the visible footer. A live check fetches the served page and matches the
+stamp against current HEAD. Originated here: every prior "200 OK" check
+against this repo's Pages URL was unknowingly hitting an auto-generated
+Jekyll README placeholder (no index.html existed), not the deployed tool —
+now fixed, and the stamp below is the safeguard against it recurring.
+
 # CONTEXT WALL
 No Nova asset, colour, key, or copy in this repo, ever, and the reverse. Origin
 separation from Nova's tooling is deliberate (resurgam-ltd.github.io vs Nova's
@@ -49,7 +63,12 @@ prospect data, CSV exports, and anything client-identifying never enter it —
 
 # resurgam-tool
 Single working file: resurgam_prospect_tool_v1.html, forked and stripped from
-Nova's prospecting tool. Served via GitHub Pages at
-https://resurgam-ltd.github.io/resurgam-tool/. Unannounced during the build
-phase — nothing links to it and it is not used on any real prospect until
-Jamie's click-through sign-off.
+Nova's prospecting tool. index.html is a thin redirect into it (same pattern
+as nova-tool) — the working file is never renamed to index.html itself.
+Served via GitHub Pages at https://resurgam-ltd.github.io/resurgam-tool/.
+Unannounced during the build phase — nothing links to it and it is not used
+on any real prospect until Jamie's click-through sign-off.
+
+Live verification MUST check served content, not status code alone (see
+VERIFY BEFORE ASSERT above) — match the build-stamp meta tag / footer
+against current HEAD. See KNOWN-GAPS.md for parked issues.
