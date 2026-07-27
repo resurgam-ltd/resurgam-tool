@@ -5,16 +5,13 @@ v1 or because the right fix depends on information not yet available. Re-assess
 after the first real prospecting session — does any of these actually cost
 something, or is it still fine to leave parked.
 
-- **Places lookup / Find Trading Address / static maps return errors.**
-  `resurgam-ch-proxy` is deliberately stripped to Companies House only (per the
-  build brief); it never proxied Google Places, geocoding, or static maps.
-  The frontend still has the UI for these (inherited from the fork, not
-  removed since only Solar/Footprints/Visualiser/branding were named for
-  removal) and will show "lookup failed" / HTTP 405 for them. Impact: no
-  auto-fill for phone/website/site address or a map thumbnail; contact details
-  must be entered manually. Low impact for v1 given headcount/sector/tag are
-  the qualification fields that matter, but worth a decision if manual entry
-  proves to be real outreach friction.
+- ~~Places lookup / Find Trading Address / static maps return errors.~~
+  **RESOLVED by removal (Change Order 03).** The whole Locate/Measure
+  workflow (Search Company via Google Places, Find Trading Address, Google
+  Earth KML export, site-area capture) was Nova's roofing-survey worldview
+  and has been deleted outright, not left broken and deferred. Reach is now
+  manual-only by design (PECR — contacts found manually, no scraping/lookup
+  services), which was the intended contact-sourcing model anyway.
 
 - **No Resurgam Airtable base yet.** `AT_BASE`/`AT_COMPANIES`/`AT_SITES` are
   deliberately empty; all saves are localStorage-only (see CLAUDE.md). This

@@ -265,15 +265,27 @@ input, button, select, textarea { font-family: inherit; }
         <option value="care_providers">Care Providers (Residential &amp; Domiciliary)</option>
         <option value="logistics_warehousing">Logistics, Haulage &amp; Warehousing</option>
         <option value="tech_software">Tech &amp; Software</option>
+        <option value="clinical_practice_owners">Clinical Practice Owners</option>
+        <option value="financial_sales_pressure">Financial &amp; Sales-Pressure Firms</option>
+      </select>
+    </div>
+    <div class="fg">
+      <label>Region</label>
+      <select id="s-region" onchange="populateCountyOptions()">
+        <option value="South West">South West</option>
+        <option value="South East">South East</option>
+        <option value="London">London</option>
+        <option value="Midlands">Midlands</option>
+        <option value="North">North</option>
+        <option value="Wales">Wales</option>
+        <option value="Scotland">Scotland</option>
+        <option value="NI">Northern Ireland</option>
+        <option value="">All UK</option>
       </select>
     </div>
     <div class="fg">
       <label>County</label>
-      <select id="s-county">
-        <option value="">Any (Devon &amp; Cornwall)</option>
-        <option value="Devon">Devon</option>
-        <option value="Cornwall">Cornwall</option>
-      </select>
+      <select id="s-county"></select>
     </div>
     <div class="fg">
       <label>Company age (size proxy)</label>
@@ -309,7 +321,7 @@ input, button, select, textarea { font-family: inherit; }
   <div class="tab-panel" id="tab-manual">
     <div class="slabel-s">Manual Entry</div>
     <div class="fg"><label>Company Name</label><input type="text" id="m-company" placeholder="e.g. Midlands Distribution Ltd" /></div>
-    <div class="fg"><label>Site Address</label><input type="text" id="m-address" placeholder="Full site address including postcode" /></div>
+    <div class="fg"><label>Address</label><input type="text" id="m-address" placeholder="Full address including postcode" /></div>
     <div class="fg"><label>Contact Name (optional)</label><input type="text" id="m-contact" placeholder="e.g. Mr J. Smith" /></div>
     <div class="fg"><label>Job Title (optional)</label><input type="text" id="m-job-title" placeholder="e.g. Facilities Manager" /></div>
     <div class="fg"><label>Email Address</label><input type="email" id="m-email" placeholder="e.g. j.smith@company.co.uk" /></div>
@@ -322,6 +334,8 @@ input, button, select, textarea { font-family: inherit; }
         <option value="care_providers">Care Providers (Residential &amp; Domiciliary)</option>
         <option value="logistics_warehousing">Logistics, Haulage &amp; Warehousing</option>
         <option value="tech_software">Tech &amp; Software</option>
+        <option value="clinical_practice_owners">Clinical Practice Owners</option>
+        <option value="financial_sales_pressure">Financial &amp; Sales-Pressure Firms</option>
       </select>
     </div>
     <div class="fg"><label>Site Area (m²)</label><input type="number" id="m-sitearea" placeholder="e.g. 2000" min="100" /></div>
@@ -375,93 +389,42 @@ input, button, select, textarea { font-family: inherit; }
     <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin:1.25rem 0 0.5rem;border-bottom:1px solid #C2A86444;padding-bottom:0.35rem;">1. Identity</div>
     <div class="dp-grid">
       <div class="dp-field">
-        <label>Site Address</label>
-        <input type="text" id="dp-address" placeholder="Searching for address..." />
-        <div class="dp-ch-hint" id="dp-ch-address-hint" style="display:none;">
-          <span class="dp-ch-hint-label">CH registered office:</span>
-          <span class="dp-ch-hint-value" id="dp-ch-address-value"></span>
-          <button type="button" class="dp-ch-swap-btn" onclick="useChAddress()">Use this</button>
-        </div>
+        <label>Registered office (Companies House)</label>
+        <input type="text" id="dp-address" placeholder="Looking up address..." />
       </div>
       <div class="dp-field">
         <label>Sector Type</label>
-        <select id="dp-sector" onchange="document.getElementById('dp-tag').value = SECTOR_DOOR_DEFAULT[this.value] || 'Owner'; renderEmailVariantPreview(); renderPressureCost();">
+        <select id="dp-sector" onchange="document.getElementById('dp-tag').value = SECTOR_DOOR_DEFAULT[this.value] || 'Owner'; renderEmailVariantPreview(); renderPressureCost(); renderPersonaChips();">
           <option value="professional_services">Professional Services (Legal, Accountancy, Consultancy)</option>
           <option value="construction_trades">Construction &amp; Trades Contractors</option>
           <option value="defence_marine">Defence &amp; Marine Engineering Supply Chain</option>
           <option value="care_providers">Care Providers (Residential &amp; Domiciliary)</option>
           <option value="logistics_warehousing">Logistics, Haulage &amp; Warehousing</option>
           <option value="tech_software">Tech &amp; Software</option>
-        </select>
-      </div>
-      <div class="dp-field">
-        <label>Track</label>
-        <select id="dp-track">
-          <option value="Standard">Standard</option>
-          <option value="Multi-Site">Multi-Site</option>
-          <option value="Managing-Agent">Managing-Agent</option>
+          <option value="clinical_practice_owners">Clinical Practice Owners</option>
+          <option value="financial_sales_pressure">Financial &amp; Sales-Pressure Firms</option>
         </select>
       </div>
     </div>
 
-    <!-- ================== 2. LOCATE ================== -->
-    <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin:1.5rem 0 0.5rem;border-bottom:1px solid #C2A86444;padding-bottom:0.35rem;">2. Locate</div>
-    <div id="dp-locate-hint" style="font-size:0.85rem;font-weight:500;margin-bottom:0.6rem;min-height:1.2em;"></div>
-    <div style="margin-bottom:0.8rem;">
-      <button id="dp-places-btn" class="dp-btn" style="background:var(--accent);color:white;" onclick="runPlacesLookup()">Search Company</button>
-      <div id="dp-places-panel" style="display:none;margin-top:0.5rem;"></div>
-    </div>
-    <!-- Find trading address: kicks off a slow web-research call on the Worker. User-click only, never auto-fired. -->
-    <div style="margin-bottom: 1rem;">
-      <button type="button" id="dp-findsite-btn" class="dp-btn" style="background:var(--accent);color:#fff;" onclick="findTradingAddress()">Find trading address</button>
-      <div id="dp-findsite-panel" style="display:none;margin-top:0.6rem;"></div>
-    </div>
-
-    <!-- ================== 3. MEASURE ================== -->
-    <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin:1.5rem 0 0.5rem;border-bottom:1px solid #C2A86444;padding-bottom:0.35rem;">3. Measure</div>
-    <div id="dp-measure-hint" style="font-size:0.85rem;font-weight:500;margin-bottom:0.6rem;min-height:1.2em;"></div>
+    <!-- ================== 2. QUALIFY ================== -->
+    <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin:1.5rem 0 0.5rem;border-bottom:1px solid #C2A86444;padding-bottom:0.35rem;">2. Qualify</div>
+    <div id="dp-qualify-signals" style="font-size:0.78rem;color:var(--muted);margin-bottom:0.6rem;"></div>
     <div class="dp-grid">
       <div class="dp-field">
-        <label>Site Area m² (from Google Earth)</label>
-        <input type="number" id="dp-sitearea" class="sitearea-input" placeholder="Enter m² here" min="100" />
+        <label>Headcount</label>
+        <input type="number" id="dp-headcount" placeholder="Your estimate (LinkedIn or accounts notes)" min="1" oninput="renderPressureCost()" />
       </div>
     </div>
 
-    <!-- ================== 4. REACH ================== -->
-    <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin:1.5rem 0 0.5rem;border-bottom:1px solid #C2A86444;padding-bottom:0.35rem;">4. Reach</div>
-    <div class="dp-row" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:0.25rem;">
-      <div>
-        <label style="display:block;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;margin-bottom:0.25rem;">Site Phone</label>
-        <input type="tel" id="dp-phone" placeholder="From Google Places or enter manually" style="width:100%;padding:0.55rem 0.75rem;border:1px solid #d0d0d5;border-radius:4px;font-family:inherit;font-size:0.9rem;" />
-      </div>
-      <div>
-        <label style="display:block;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;margin-bottom:0.25rem;">Website</label>
-        <input type="url" id="dp-website" placeholder="From Google Places or enter manually" style="width:100%;padding:0.55rem 0.75rem;border:1px solid #d0d0d5;border-radius:4px;font-family:inherit;font-size:0.9rem;" />
-      </div>
-    </div>
-    <div class="dp-grid" style="margin-top:0.75rem;">
-      <div class="dp-field">
-        <label>Contact Name (optional)</label>
-        <input type="text" id="dp-contact" placeholder="e.g. Mr J. Smith" />
-      </div>
-      <div class="dp-field">
-        <label>Job Title (optional)</label>
-        <input type="text" id="dp-job-title" placeholder="e.g. Facilities Manager" />
-      </div>
-      <div class="dp-field">
-        <label>Email Address</label>
-        <input type="email" id="dp-email" placeholder="e.g. j.smith@company.co.uk" />
-      </div>
-      <div class="dp-field">
-        <label>Headcount (manual qualification)</label>
-        <input type="number" id="dp-headcount" placeholder="Your estimate — CH doesn't give employee counts" min="1" oninput="renderPressureCost()" />
-      </div>
-    </div>
-    <div class="dp-row" style="display:grid;grid-template-columns:1fr;gap:0.5rem;margin-top:0.5rem;">
-      <button type="button" id="dp-findemail-btn" class="dp-btn" style="background:var(--accent);color:white;width:fit-content;" onclick="runFindEmailFromContactField()">Find Email</button>
-      <div id="dp-findemail-result" style="display:none;font-size:0.85rem;line-height:1.5;"></div>
-    </div>
-    <div class="addr-buttons" style="margin-top:0.6rem;">
+    <!-- ================== 3. REACH ================== -->
+    <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin:1.5rem 0 0.5rem;border-bottom:1px solid #C2A86444;padding-bottom:0.35rem;">3. Reach</div>
+    <div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.6rem;">Contacts found manually (PECR) — no scraping, no lookup services.</div>
+    <div class="addr-buttons" style="margin-bottom:0.75rem;">
+      <button class="addr-btn addr-btn-officers" id="dp-officers-btn" onclick="toggleDetailOfficers()" style="display:none;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0113 0"/></svg>
+        Officers
+      </button>
       <button class="addr-btn addr-btn-copy" id="dp-copy-addr-btn" onclick="copyAddress()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         Copy Address
@@ -469,10 +432,6 @@ input, button, select, textarea { font-family: inherit; }
       <button class="addr-btn addr-btn-maps" onclick="openMaps()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 00-8 8c0 5.4 7.05 11.5 7.65 12a.5.5 0 00.7 0C13 21.5 20 15.4 20 10a8 8 0 00-8-8z"/></svg>
         Google Maps
-      </button>
-      <button class="addr-btn addr-btn-earth" onclick="openEarth()">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
-        Google Earth
       </button>
       <button class="addr-btn addr-btn-linkedin" id="dp-linkedin-btn" onclick="openLinkedIn()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14m-.5 15.5v-5.3a3.26 3.26 0 00-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 011.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 001.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 00-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/></svg>
@@ -482,29 +441,48 @@ input, button, select, textarea { font-family: inherit; }
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         Look up on CH
       </button>
-      <button class="addr-btn addr-btn-officers" id="dp-officers-btn" onclick="toggleDetailOfficers()" style="display:none;">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0113 0"/></svg>
-        Officers
-      </button>
       <span class="copy-confirm" id="copy-confirm">Copied!</span>
     </div>
     <div class="dp-lookup-panel" id="dp-lookup-panel"></div>
     <div class="dp-officers-panel" id="dp-officers-panel"></div>
-    <div class="dp-li-row">
+    <div class="dp-li-row" id="dp-persona-chips">
       <span class="dp-li-label">LinkedIn People Search:</span>
-      <button class="dp-li-btn" onclick="openDetailLinkedIn('estates')">Estates</button>
-      <button class="dp-li-btn" onclick="openDetailLinkedIn('facilities')">Facilities</button>
-      <button class="dp-li-btn" onclick="openDetailLinkedIn('procurement')">Procurement</button>
-      <button class="dp-li-btn" onclick="openDetailLinkedIn('all')">All staff</button>
+    </div>
+    <div class="dp-row" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:0.75rem;">
+      <div>
+        <label style="display:block;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;margin-bottom:0.25rem;">Website</label>
+        <input type="url" id="dp-website" placeholder="Enter manually" style="width:100%;padding:0.55rem 0.75rem;border:1px solid #d0d0d5;border-radius:4px;font-family:inherit;font-size:0.9rem;" />
+      </div>
+      <div>
+        <label style="display:block;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;margin-bottom:0.25rem;">Phone</label>
+        <input type="tel" id="dp-phone" placeholder="Enter manually" style="width:100%;padding:0.55rem 0.75rem;border:1px solid #d0d0d5;border-radius:4px;font-family:inherit;font-size:0.9rem;" />
+      </div>
+    </div>
+    <div class="dp-grid" style="margin-top:0.75rem;">
+      <div class="dp-field">
+        <label>Contact Name (optional)</label>
+        <input type="text" id="dp-contact" placeholder="e.g. Mr J. Smith" />
+      </div>
+      <div class="dp-field">
+        <label>Job Title (optional)</label>
+        <input type="text" id="dp-job-title" placeholder="e.g. Managing Director" />
+      </div>
+      <div class="dp-field">
+        <label>Email Address</label>
+        <input type="email" id="dp-email" placeholder="e.g. j.smith@company.co.uk" />
+      </div>
+    </div>
+    <div class="dp-row" style="display:grid;grid-template-columns:1fr;gap:0.5rem;margin-top:0.5rem;">
+      <button type="button" id="dp-findemail-btn" class="dp-btn" style="background:var(--accent);color:white;width:fit-content;" onclick="searchForEmail()">Search for email</button>
     </div>
 
-    <!-- ================== 5. ACT ================== -->
-    <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin:1.5rem 0 0.5rem;border-bottom:1px solid #C2A86444;padding-bottom:0.35rem;">5. Act</div>
+    <!-- ================== 4. ACT ================== -->
+    <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin:1.5rem 0 0.5rem;border-bottom:1px solid #C2A86444;padding-bottom:0.35rem;">4. Act</div>
 
     <div class="dp-grid" style="margin-bottom:0.75rem;">
       <div class="dp-field">
         <label>Tag (outreach door)</label>
-        <select id="dp-tag" onchange="renderEmailVariantPreview()">
+        <select id="dp-tag" onchange="renderEmailVariantPreview(); renderPersonaChips();">
           <option value="Owner">Owner</option>
           <option value="People">People</option>
           <option value="Covenant">Covenant</option>
@@ -583,101 +561,6 @@ async function findCompanyByName(companyName) {
   }
 }
 
-async function searchCompanyOnPlaces(companyName, companyNumber) {
-  if (!companyName) return null;
-  try {
-    const resp = await fetch(`${CH_PROXY}/places`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyName: companyName, companyNumber: companyNumber || null })
-    });
-    if (!resp.ok) {
-      console.error('Places lookup failed:', resp.status);
-      return null;
-    }
-    return await resp.json();
-  } catch(e) {
-    console.error('Places lookup error:', e);
-    return null;
-  }
-}
-
-async function runPlacesLookup() {
-  if (!currentProspect || !currentProspect.name) {
-    alert('No prospect loaded.');
-    return;
-  }
-  const btn = document.getElementById('dp-places-btn');
-  const panel = document.getElementById('dp-places-panel');
-  if (btn) { btn.disabled = true; btn.textContent = 'Searching...'; }
-  if (panel) { panel.style.display = 'block'; panel.innerHTML = '<div style="opacity:0.7;font-size:0.85rem;">Searching Google Places...</div>'; }
-
-  const result = await searchCompanyOnPlaces(currentProspect.name, currentProspect.number);
-
-  if (btn) { btn.disabled = false; btn.textContent = 'Search Company'; }
-  renderPlacesResult(result, panel);
-}
-
-function renderPlacesResult(result, panel) {
-  if (!panel) return;
-  if (!result) {
-    panel.innerHTML = '<div style="color:#c44;font-size:0.85rem;padding:0.5rem;background:#fee;border-radius:6px;">Places lookup failed. Try again or check the console.</div>';
-    return;
-  }
-  const confidenceColors = { high: '#2a9d4a', ambiguous: '#d49b00', low: '#c44', none: '#888' };
-  const c = confidenceColors[result.confidence] || '#888';
-  const matches = Array.isArray(result.matches) ? result.matches : [];
-
-  // Auto-apply on a low-confidence single match: populate fields immediately
-  // but keep the panel rendered so the user sees the source + the low-confidence signal.
-  const autoApplied = result.confidence === 'low' && matches.length === 1;
-  if (autoApplied) {
-    applyPlacesMatch(matches[0]);
-  }
-
-  // Single-line confidence strip: dot · "Confidence: X" · (cached) · · auto-applied
-  const stripParts = [];
-  stripParts.push(`<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${c};flex-shrink:0;"></span>`);
-  stripParts.push(`<strong style="text-transform:uppercase;font-size:0.7rem;letter-spacing:0.04em;">Confidence: ${result.confidence || 'unknown'}</strong>`);
-  if (result.cacheHit) stripParts.push(`<span style="font-size:0.7rem;opacity:0.6;">(cached)</span>`);
-  if (autoApplied) stripParts.push(`<span style="font-size:0.7rem;color:#2a9d4a;font-weight:600;">· auto-applied</span>`);
-  const strip = `<div style="display:flex;align-items:center;gap:0.4rem;">${stripParts.join('')}</div>`;
-
-  // Body — empty-state or full match-detail block, collapsible by default via <details>.
-  let body = '';
-  if (matches.length === 0) {
-    body = '<div style="opacity:0.7;margin-top:0.4rem;">No matches returned from Google Places.</div>';
-  } else {
-    const blocks = matches.map((m, i) => {
-      const lines = [];
-      if (matches.length > 1) lines.push(`<div style="font-weight:600;margin-top:${i === 0 ? '0' : '0.75rem'};opacity:0.7;font-size:0.75rem;">MATCH ${i + 1}</div>`);
-      if (m.displayName) lines.push(`<div><strong>Name:</strong> ${m.displayName}</div>`);
-      if (m.formattedAddress) lines.push(`<div><strong>Address:</strong> ${m.formattedAddress}</div>`);
-      if (m.nationalPhoneNumber) lines.push(`<div><strong>Phone:</strong> ${m.nationalPhoneNumber}</div>`);
-      if (m.websiteUri) lines.push(`<div><strong>Website:</strong> <a href="${m.websiteUri}" target="_blank" rel="noopener">${m.websiteUri}</a></div>`);
-      if (m.googleMapsUri) lines.push(`<div><strong>Maps:</strong> <a href="${m.googleMapsUri}" target="_blank" rel="noopener">Open in Google Maps</a></div>`);
-      if (autoApplied && i === 0) {
-        lines.push(`<div style="margin-top:0.4rem;padding:0.25rem 0.5rem;display:inline-block;background:#e8e8eb;color:#666;border-radius:4px;font-family:inherit;font-size:0.7rem;font-weight:600;letter-spacing:0.02em;">Match auto-applied</div>`);
-      } else {
-        lines.push(`<div style="margin-top:0.4rem;"><button type="button" onclick='applyPlacesMatch(${JSON.stringify(m).replace(/'/g, "&#39;")})' style="background:#15803d;color:white;border:none;padding:0.4rem 0.9rem;border-radius:6px;font-family:inherit;font-size:0.8rem;font-weight:600;cursor:pointer;letter-spacing:0.02em;">Use this match</button></div>`);
-      }
-      return lines.join('');
-    }).join('');
-    body = `<details style="margin-top:0.4rem;"><summary style="cursor:pointer;font-size:0.7rem;color:var(--muted);letter-spacing:0.04em;text-transform:uppercase;font-weight:600;outline:none;">Show match details</summary><div style="margin-top:0.5rem;line-height:1.5;">${blocks}</div></details>`;
-  }
-
-  panel.innerHTML = `<div style="padding:0.5rem 0.75rem;background:#f5f5f7;border-radius:6px;font-size:0.85rem;">${strip}${body}</div>`;
-}
-
-// Restore the address-row buttons that applyPlacesMatch hides on a successful match.
-// Called whenever a new prospect is loaded so a previous prospect's hidden state doesn't carry over.
-function _restoreDefaultAddrButtons() {
-  const copyBtn = document.getElementById('dp-copy-addr-btn');
-  if (copyBtn) copyBtn.style.display = '';
-  const liBtn = document.getElementById('dp-linkedin-btn');
-  if (liBtn) liBtn.style.display = '';
-}
-
 // Clears email-related state on prospect switch. Belongs before any code path that
 // REPLACES currentProspect with a fresh object (selectProspect, generateFromManual,
 // loadSavedFromCache). NOT called from pickLookupResult which mutates currentProspect
@@ -696,27 +579,6 @@ function _resetPerProspectEmailState() {
   domainInputs.forEach(function(el) { el.value = ''; });
 }
 
-// Set dp-track to the most sensible default for the current prospect:
-// - If currentProspect.track is already set (e.g. loaded from a saved entry), use it
-// - Else if activeSitesCount > 1, pick Multi-Site (signals a portfolio prospect)
-// - Else fall back to Standard
-// User can manually override to Managing-Agent or any other option after the default.
-function _setTrackDefault() {
-  const sel = document.getElementById('dp-track');
-  if (!sel) return;
-  let track = '';
-  if (currentProspect) {
-    if (currentProspect.track) {
-      track = currentProspect.track;
-    } else if (Number(currentProspect.activeSitesCount) > 1) {
-      track = 'Multi-Site';
-    } else {
-      track = 'Standard';
-    }
-  }
-  if (track) sel.value = track;
-}
-
 // ============================================================
 // Multi-user pipeline cache: polls Airtable Companies every 30s,
 // drives the IN PIPELINE badge on search cards + the SAVED tab.
@@ -729,7 +591,7 @@ const PIPELINE_POLL_MS = 30000;
 
 function _extractRefNumFromNotes(notes) {
   if (!notes) return '';
-  const m = String(notes).match(/Ref:\s*(NOV-\d+)/i);
+  const m = String(notes).match(/Ref:\s*(RSG-\d+)/i);
   return m ? m[1] : '';
 }
 
@@ -739,7 +601,6 @@ function _pipelineCacheEntryFromRecord(rec) {
     recordId: rec.id || '',
     number: String(f['CompanyNumber'] || '').trim(),
     name: f['Company Name'] || '',
-    track: f['Track'] || '',
     stage: f['Stage'] || '',
     sector: f['Sector'] || '',
     siteArea: Number(f['TotalSiteArea']) || 0,
@@ -751,8 +612,7 @@ function _pipelineCacheEntryFromRecord(rec) {
     registeredOffice: f['RegisteredOffice'] || '',
     createdTime: rec.createdTime || '',
     lastModifiedTime: f['Last Modified'] || rec.createdTime || '',
-    totalSitesCount: Number(f['Total Sites Count']) || 0,
-    activeSitesCount: Number(f['Active Sites Count']) || 0
+    totalSitesCount: Number(f['Total Sites Count']) || 0
   };
 }
 
@@ -789,7 +649,7 @@ async function _fetchSiteLocations() {
         const entry = {
           siteRecordId: rec.id || '',
           phone:        String(f['ContactPhone'] || '').trim(),
-          siteAddress:  String(f['Site Address'] || '').trim()
+          siteAddress:  String(f['Address'] || '').trim()
         };
         if (typeof lat === 'number' && typeof lng === 'number') {
           entry.lat = lat; entry.lng = lng;
@@ -915,13 +775,11 @@ function _applyInPipelineFlag(card, num) {
   const entry = savedPipelineCache.get(String(num));
   if (!entry) return;
   card.classList.add('in-pipeline');
-  const trackLabel = entry.track || 'Unknown';
-  const trackClass = 'tag-pipeline-' + (entry.track || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-$/, '') || 'tag-pipeline-unknown';
   const row = document.createElement('div');
   row.className = 'pc-pipeline-row';
   const pill = document.createElement('span');
-  pill.className = 'tag tag-pipeline ' + trackClass;
-  pill.textContent = 'IN PIPELINE · ' + trackLabel;
+  pill.className = 'tag tag-pipeline tag-pipeline-unknown';
+  pill.textContent = 'IN PIPELINE';
   row.appendChild(pill);
   // Insert right after the top button row (which contains .pc-name).
   const nameEl = card.querySelector('.pc-name');
@@ -940,68 +798,6 @@ function _refreshInPipelineFlags() {
   });
 }
 
-function applyPlacesMatch(match) {
-  if (!match) return;
-  const addrEl = document.getElementById('dp-address');
-  const phoneEl = document.getElementById('dp-phone');
-  const websiteEl = document.getElementById('dp-website');
-
-  if (addrEl && match.formattedAddress) { addrEl.value = match.formattedAddress; addrEl.style.color = ''; }
-  if (phoneEl && match.nationalPhoneNumber) phoneEl.value = match.nationalPhoneNumber;
-  if (websiteEl && match.websiteUri) websiteEl.value = match.websiteUri;
-
-  if (currentProspect) {
-    if (match.formattedAddress) currentProspect.address = match.formattedAddress;
-    if (match.nationalPhoneNumber) currentProspect.phone = match.nationalPhoneNumber;
-    if (match.websiteUri) currentProspect.website = match.websiteUri;
-    if (match.displayName) currentProspect.placesName = match.displayName;
-    if (match.location && match.location.latitude && match.location.longitude) {
-      currentProspect.location = { lat: match.location.latitude, lng: match.location.longitude };
-    }
-  }
-
-  if (match.websiteUri && currentProspect && currentProspect.number) {
-    try {
-      const u = new URL(match.websiteUri);
-      const domain = u.hostname.replace(/^www\./i, '');
-      if (domain) _emailDomainCache.set(currentProspect.number, domain);
-    } catch(e) {}
-  }
-
-  // Stash the bare email domain on currentProspect (so the Officers panel can pre-fill the
-  // EMAIL DOMAIN input next time it renders), and fill the live input if it's already on-screen
-  // and empty. Works even when currentProspect.number is missing (MANUAL entries).
-  if (match.websiteUri && currentProspect) {
-    const bare = _bareDomain(match.websiteUri);
-    if (bare) {
-      if (!currentProspect.emailDomain) currentProspect.emailDomain = bare;
-      const liveDomainInput = document.querySelector('.dp-domain-input, .pc-domain-input');
-      if (liveDomainInput && !(liveDomainInput.value || '').trim()) {
-        liveDomainInput.value = bare;
-        if (currentProspect.number) _emailDomainCache.set(currentProspect.number, bare);
-      }
-    }
-  }
-
-  [addrEl, phoneEl, websiteEl].forEach(el => {
-    if (!el) return;
-    const orig = el.style.background;
-    el.style.background = '#e6f4ea';
-    setTimeout(() => { el.style.background = orig; }, 1200);
-  });
-
-  // Hide buttons now made redundant by the Places auto-fill. Conditional on the
-  // relevant field being populated by this match, so partial matches don't over-hide.
-  if (match.formattedAddress) {
-    const copyBtn = document.getElementById('dp-copy-addr-btn');
-    if (copyBtn) copyBtn.style.display = 'none';
-  }
-  if (match.websiteUri) {
-    const liBtn = document.getElementById('dp-linkedin-btn');
-    if (liBtn) liBtn.style.display = 'none';
-  }
-}
-
 async function findSitesUnderCompany(companyRecord, address) {
   const linkedIds = (companyRecord && companyRecord.fields && companyRecord.fields['Sites']) || [];
   if (!linkedIds.length) return [];
@@ -1015,7 +811,7 @@ async function findSitesUnderCompany(companyRecord, address) {
   if (!address) return sites;
   const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
   const target = norm(address);
-  return sites.filter(s => norm((s.fields || {})['Site Address']) === target);
+  return sites.filter(s => norm((s.fields || {})['Address']) === target);
 }
 
 async function saveProspectToAirtable(data, stage) {
@@ -1027,16 +823,6 @@ async function saveProspectToAirtable(data, stage) {
   let companyRecord = null;
   if (data.number) companyRecord = await findCompanyByNumber(data.number);
   else if (data.name) companyRecord = await findCompanyByName(data.name);
-
-  // Multi-site data captured by findTradingAddress (stashed on currentProspect).
-  // Always write 'Site Count' to Companies when we have it. Branch Sites are
-  // written only when siteCount >= 2 (single-site is already covered by the
-  // main Site write below). Track override to 'Multi-Site' has already been
-  // applied to the in-memory data.track via _applyMultiSiteClassification.
-  const fsr = (currentProspect && currentProspect.findSiteResult) ? currentProspect.findSiteResult : null;
-  const fsrSiteCount = fsr && Number.isInteger(fsr.siteCount) ? fsr.siteCount : null;
-  const fsrBranches  = fsr && Array.isArray(fsr.branches) ? fsr.branches.slice(0, 15) : [];
-  const multiSiteCompanyFields = (fsrSiteCount !== null) ? { 'Site Count': fsrSiteCount } : {};
 
   if (companyRecord) {
     const existingName = (companyRecord.fields || {})['Company Name'] || data.name;
@@ -1097,13 +883,10 @@ async function saveProspectToAirtable(data, stage) {
         'Stage': stage,
         'Sector': sd.label,
         'Total Sites Count': 1,
-        'Active Sites Count': 1,
         'TotalSiteArea': siteArea,
         'Website': data.website || '',
         'RegisteredOffice': data.registeredOffice || '',
-        'Track': data.track || 'Standard',
-        'Notes': `Ref: ${data.refNum || ''}. Added via Resurgam Prospect Tool.`,
-        ...multiSiteCompanyFields
+        'Notes': `Ref: ${data.refNum || ''}. Added via Resurgam Prospect Tool.`
       }})
     });
     if (!cResp.ok) throw new Error(`Company create: ${await cResp.text()}`);
@@ -1112,7 +895,7 @@ async function saveProspectToAirtable(data, stage) {
 
   const siteFields = {
     'Company Name': data.name,
-    'Site Address': data.address || '',
+    'Address': data.address || '',
     'Sector': sd.label,
     'Site Area m2': siteArea,
     'Active': true,
@@ -1131,50 +914,8 @@ async function saveProspectToAirtable(data, stage) {
   if (!sResp.ok) throw new Error(`Site create: ${await sResp.text()}`);
   const siteId = (await sResp.json()).id;
 
-  // === Multi-site branches: write up to 15 branch Sites linked to this Company. ===
-  // Only when siteCount >= 2 (single-site is already covered by the main Site
-  // write above). Non-fatal — branch write failure doesn't fail the save; the
-  // main Company + Site rows are already persisted at this point.
-  if (fsrSiteCount !== null && fsrSiteCount >= 2 && fsrBranches.length > 0) {
-    try {
-      const branchRecords = fsrBranches.map(function(b) {
-        const addrLine = [b.address, b.postcode]
-          .filter(function(p){ return p && String(p).trim(); })
-          .map(function(p){ return String(p).trim(); })
-          .join(', ');
-        return {
-          fields: {
-            'Company Name': data.name,
-            'Site Address': addrLine,
-            'Sector': sd.label,
-            'Active': true,
-            'Company': [companyId]
-          }
-        };
-      });
-      // Airtable's create endpoint accepts up to 10 records per request; with
-      // our 15-cap that's at most 2 batches.
-      for (let i = 0; i < branchRecords.length; i += 10) {
-        const batch = branchRecords.slice(i, i + 10);
-        const bResp = await fetch(AT_SITES_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ records: batch, typecast: true })
-        });
-        if (!bResp.ok) {
-          const errText = await bResp.text();
-          console.warn('Branch sites batch ' + (Math.floor(i / 10) + 1) + ' failed:', errText);
-          break;
-        }
-      }
-    } catch (e) {
-      console.warn('Branch sites batch write threw:', (e && e.message) || e);
-    }
-  }
-
   if (companyRecord) {
     const oldTotal = Number((companyRecord.fields || {})['Total Sites Count']) || 0;
-    const oldActive = Number((companyRecord.fields || {})['Active Sites Count']) || 0;
     const oldSiteArea = Number((companyRecord.fields || {})['TotalSiteArea']) || 0;
     try {
       await fetch(`${AT_COMPANIES_URL}/${companyId}`, {
@@ -1182,12 +923,9 @@ async function saveProspectToAirtable(data, stage) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fields: {
           'Total Sites Count': oldTotal + 1,
-          'Active Sites Count': oldActive + 1,
           'TotalSiteArea': oldSiteArea + siteArea,
           ...(data.website ? { 'Website': data.website } : {}),
-          ...(data.registeredOffice ? { 'RegisteredOffice': data.registeredOffice } : {}),
-          ...(data.track ? { 'Track': data.track } : {}),
-          ...multiSiteCompanyFields
+          ...(data.registeredOffice ? { 'RegisteredOffice': data.registeredOffice } : {})
         }})
       });
     } catch(_) {}
@@ -1204,32 +942,125 @@ const MF_TOTAL = MONTHLY_F.reduce((a,b)=>a+b,0);
 // financial model removed in the fork/strip pass. `label` remains: it's used
 // as a legacy-record sector-key lookup fallback (see ~line 4755).
 const SECTOR_DATA = {
-  professional_services: { label: 'Professional Services (Legal, Accountancy, Consultancy)' },
-  construction_trades:   { label: 'Construction & Trades Contractors' },
-  defence_marine:        { label: 'Defence & Marine Engineering Supply Chain' },
-  care_providers:        { label: 'Care Providers (Residential & Domiciliary)' },
-  logistics_warehousing: { label: 'Logistics, Haulage & Warehousing' },
-  tech_software:         { label: 'Tech & Software' }
+  professional_services:    { label: 'Professional Services (Legal, Accountancy, Consultancy)' },
+  construction_trades:      { label: 'Construction & Trades Contractors' },
+  defence_marine:           { label: 'Defence & Marine Engineering Supply Chain' },
+  care_providers:           { label: 'Care Providers (Residential & Domiciliary)' },
+  logistics_warehousing:    { label: 'Logistics, Haulage & Warehousing' },
+  tech_software:            { label: 'Tech & Software' },
+  clinical_practice_owners: { label: 'Clinical Practice Owners' },
+  financial_sales_pressure: { label: 'Financial & Sales-Pressure Firms' }
 };
 
 
-// County to towns mapping - towns match Companies House locality field values
-// Resurgam is a Devon & Cornwall regional practice — scope is deliberately
-// narrowed to these two counties (was nationwide in Nova's original tool).
-// ADDITIVE BY DESIGN: this is config, not structure. Widening to a third
-// county later (e.g. Somerset) is a two-line change: (1) add a
-// 'Somerset': [...towns] entry here, (2) add a matching <option> to the
-// #s-county <select> in the HTML. _resurgamTowns() and _matchesResurgamTowns()
-// already iterate whatever keys exist here — no other code changes needed.
+// County to towns mapping - towns match Companies House locality field values.
+// National scope restored (Change Order 03) — was narrowed to Devon/Cornwall
+// only in the original build. ADDITIVE BY DESIGN: this is config, not
+// structure. Widening (a new county, a new region) is a config-only change:
+// (1) add the county's towns here, (2) add it to the right REGION_PRESETS
+// array, (3) if it's a wholly new region, add one <option> to #s-region.
+// _resurgamTowns()/_matchesResurgamTowns() iterate whatever keys exist here —
+// no other code changes needed.
 const COUNTY_TOWNS = {
-  'Cornwall': ['Truro','Penzance','Bodmin','Camborne','Redruth','St Austell','Falmouth','Newquay','Saltash','Liskeard'],
-  'Devon':    ['Plymouth','Exeter','Torquay','Paignton','Newton Abbot','Barnstaple','Tiverton','Exmouth','Bideford','Tavistock','Devonport'],
+  'Cornwall':         ['Truro','Penzance','Bodmin','Camborne','Redruth','St Austell','Falmouth','Newquay','Saltash','Liskeard'],
+  'Devon':            ['Plymouth','Exeter','Torquay','Paignton','Newton Abbot','Barnstaple','Tiverton','Exmouth','Bideford','Tavistock','Devonport'],
+  'Somerset':         ['Taunton','Bridgwater','Yeovil','Weston-super-Mare','Bath','Frome','Glastonbury'],
+  'Dorset':           ['Bournemouth','Poole','Dorchester','Weymouth','Christchurch','Blandford Forum'],
+  'Wiltshire':        ['Swindon','Salisbury','Chippenham','Trowbridge','Devizes','Melksham'],
+  'Gloucestershire':  ['Gloucester','Cheltenham','Stroud','Cirencester','Tewkesbury'],
+  'Bristol':          ['Bristol'],
+  'Hampshire':        ['Southampton','Portsmouth','Basingstoke','Winchester','Eastleigh','Fareham','Gosport','Andover'],
+  'Kent':             ['Maidstone','Canterbury','Medway','Dartford','Folkestone','Ashford','Tonbridge','Dover','Sittingbourne'],
+  'Sussex':           ['Brighton','Eastbourne','Worthing','Crawley','Hastings','Horsham','Chichester'],
+  'Surrey':           ['Guildford','Woking','Croydon','Epsom','Reigate','Camberley'],
+  'Berkshire':        ['Reading','Slough','Bracknell','Windsor','Newbury','Wokingham'],
+  'Oxfordshire':      ['Oxford','Abingdon','Banbury','Bicester','Didcot'],
+  'Buckinghamshire':  ['Milton Keynes','Aylesbury','High Wycombe','Slough','Amersham'],
+  'Hertfordshire':    ['Watford','St Albans','Hemel Hempstead','Stevenage','Luton','Hatfield'],
+  'Essex':            ['Chelmsford','Colchester','Southend-on-Sea','Basildon','Harlow','Braintree','Brentwood'],
+  'Norfolk':          ['Norwich','Kings Lynn','Great Yarmouth','Thetford','Dereham'],
+  'Suffolk':          ['Ipswich','Bury St Edmunds','Lowestoft','Felixstowe','Haverhill'],
+  'Cambridgeshire':   ['Cambridge','Peterborough','Ely','Huntingdon','St Ives'],
+  'Greater London':   ['London','Barking','Enfield','Croydon','Wembley','Romford','Ilford'],
+  'Bedfordshire':     ['Luton','Bedford','Dunstable','Leighton Buzzard'],
+  'Northamptonshire': ['Northampton','Kettering','Corby','Wellingborough','Daventry'],
+  'Leicestershire':   ['Leicester','Loughborough','Hinckley','Melton Mowbray','Market Harborough'],
+  'Nottinghamshire':  ['Nottingham','Mansfield','Newark','Worksop','Kirkby-in-Ashfield'],
+  'Derbyshire':       ['Derby','Chesterfield','Ilkeston','Swadlincote','Buxton'],
+  'Lincolnshire':     ['Lincoln','Grimsby','Scunthorpe','Boston','Grantham','Spalding'],
+  'West Midlands':    ['Birmingham','Coventry','Wolverhampton','Walsall','Dudley','Solihull','West Bromwich'],
+  'Staffordshire':    ['Stoke-on-Trent','Stafford','Burton upon Trent','Cannock','Tamworth','Lichfield'],
+  'Shropshire':       ['Shrewsbury','Telford','Oswestry','Bridgnorth'],
+  'Worcestershire':   ['Worcester','Kidderminster','Redditch','Bromsgrove','Droitwich'],
+  'Warwickshire':     ['Coventry','Leamington Spa','Nuneaton','Rugby','Stratford-upon-Avon'],
+  'Herefordshire':    ['Hereford','Leominster','Ross-on-Wye'],
+  'West Yorkshire':   ['Leeds','Bradford','Huddersfield','Halifax','Wakefield','Dewsbury','Keighley'],
+  'South Yorkshire':  ['Sheffield','Doncaster','Rotherham','Barnsley'],
+  'North Yorkshire':  ['York','Scarborough','Harrogate','Middlesbrough','Northallerton'],
+  'East Yorkshire':   ['Hull','Beverley','Bridlington','Goole'],
+  'Greater Manchester':['Manchester','Salford','Bolton','Oldham','Stockport','Wigan','Bury','Rochdale'],
+  'Merseyside':       ['Liverpool','Birkenhead','Southport','St Helens','Runcorn','Widnes'],
+  'Lancashire':       ['Preston','Blackburn','Blackpool','Burnley','Lancaster','Accrington'],
+  'Cheshire':         ['Chester','Warrington','Crewe','Macclesfield','Ellesmere Port','Runcorn'],
+  'Cumbria':          ['Carlisle','Barrow-in-Furness','Kendal','Whitehaven','Penrith'],
+  'Tyne and Wear':    ['Newcastle upon Tyne','Sunderland','Gateshead','South Shields','Tynemouth'],
+  'County Durham':    ['Durham','Darlington','Hartlepool','Bishop Auckland','Newton Aycliffe'],
+  'Teesside':         ['Middlesbrough','Stockton-on-Tees','Redcar','Billingham'],
+  'Northumberland':   ['Ashington','Morpeth','Blyth','Hexham'],
+  'South Wales':      ['Cardiff','Swansea','Newport','Bridgend','Pontypridd','Merthyr Tydfil','Neath'],
+  'North Wales':      ['Wrexham','Rhyl','Llandudno','Colwyn Bay','Bangor'],
+  'Central Scotland': ['Glasgow','Edinburgh','Stirling','Paisley','Dumbarton','Falkirk','Livingston'],
+  'Grampian':         ['Aberdeen','Inverness','Elgin','Fraserburgh','Peterhead'],
+  'Highlands':        ['Inverness','Fort William','Wick','Thurso'],
+  'Tayside':          ['Dundee','Perth','Arbroath','Montrose'],
+  'Antrim':           ['Belfast','Antrim','Lisburn','Ballymena','Carrickfergus'],
+  'Down':             ['Newry','Bangor','Downpatrick','Newtownards'],
+  'Londonderry':      ['Londonderry','Coleraine','Limavady'],
+  'Armagh':           ['Armagh','Craigavon','Lurgan'],
+  'Fermanagh':        ['Enniskillen'],
+  'Tyrone':           ['Omagh','Dungannon','Cookstown'],
 };
 
-function _resurgamTowns(county) {
-  // Combined case iterates whatever counties exist in COUNTY_TOWNS — adding a
-  // new county there (not here) is enough to widen "Any" coverage.
-  return county ? (COUNTY_TOWNS[county] || []) : Object.values(COUNTY_TOWNS).flat();
+// Region presets group counties for the two-tier Region -> County picker.
+// Default preset is South West. "All UK" isn't listed here — it's handled as
+// "no region filter" (every county in COUNTY_TOWNS), so it can't drift out of
+// sync with this list as counties are added.
+const REGION_PRESETS = {
+  'South West': ['Cornwall','Devon','Somerset','Dorset','Wiltshire','Gloucestershire','Bristol'],
+  'South East': ['Hampshire','Kent','Sussex','Surrey','Berkshire','Oxfordshire','Buckinghamshire','Hertfordshire','Essex','Norfolk','Suffolk','Cambridgeshire'],
+  'London':     ['Greater London'],
+  'Midlands':   ['Bedfordshire','Northamptonshire','Leicestershire','Nottinghamshire','Derbyshire','Lincolnshire','West Midlands','Staffordshire','Shropshire','Worcestershire','Warwickshire','Herefordshire'],
+  'North':      ['West Yorkshire','South Yorkshire','North Yorkshire','East Yorkshire','Greater Manchester','Merseyside','Lancashire','Cheshire','Cumbria','Tyne and Wear','County Durham','Teesside','Northumberland'],
+  'Wales':      ['South Wales','North Wales'],
+  'Scotland':   ['Central Scotland','Grampian','Highlands','Tayside'],
+  'NI':         ['Antrim','Down','Londonderry','Armagh','Fermanagh','Tyrone'],
+};
+
+function _countiesForRegion(region) {
+  return (region && REGION_PRESETS[region]) ? REGION_PRESETS[region] : Object.keys(COUNTY_TOWNS);
+}
+
+function _resurgamTowns(county, region) {
+  if (county) return COUNTY_TOWNS[county] || [];
+  return _countiesForRegion(region).flatMap(function(c) { return COUNTY_TOWNS[c] || []; });
+}
+
+// Repopulates #s-county to just the counties in the selected #s-region (or
+// every county in COUNTY_TOWNS for "All UK"). Called on region change and
+// once on page load so South West (the default region) is populated from
+// the start rather than needing a manual first change.
+function populateCountyOptions() {
+  var regionEl = document.getElementById('s-region');
+  var countyEl = document.getElementById('s-county');
+  if (!regionEl || !countyEl) return;
+  var region = regionEl.value;
+  var counties = _countiesForRegion(region).slice().sort();
+  var label = region ? ('Any (' + region + ')') : 'Any (All UK)';
+  var prevValue = countyEl.value;
+  countyEl.innerHTML = '<option value="">' + label + '</option>' +
+    counties.map(function(c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+  // Preserve the previous county selection if it's still valid in the new region.
+  if (prevValue && counties.indexOf(prevValue) !== -1) countyEl.value = prevValue;
 }
 
 function _addressText(c) {
@@ -1244,13 +1075,13 @@ function _addressText(c) {
   return addr.toLowerCase();
 }
 
-function _matchesResurgamTowns(c, county) {
+function _matchesResurgamTowns(c, county, region) {
   // Match on the county name(s) themselves first — CH's structured address
   // usually populates `region` with e.g. "Devon", which catches villages our
   // curated town list can't enumerate. Town names are the fallback for
   // addresses that only give a locality, not a region.
-  var countiesL = (county ? [county] : Object.keys(COUNTY_TOWNS)).map(function(x) { return x.toLowerCase(); });
-  var townsL = _resurgamTowns(county).map(function(t) { return t.toLowerCase(); });
+  var countiesL = (county ? [county] : _countiesForRegion(region)).map(function(x) { return x.toLowerCase(); });
+  var townsL = _resurgamTowns(county, region).map(function(t) { return t.toLowerCase(); });
   var addrL = _addressText(c);
   if (!addrL) return true; // no address to check — don't discard on missing data
   return countiesL.some(function(x) { return addrL.indexOf(x) >= 0; }) ||
@@ -1299,18 +1130,49 @@ const SECTOR_SICS = {
   tech_software: [
     '58210', '58290', '62012', '62020', '62030', '62090', '63110', '63120',
   ],
+  // 7. Clinical practice owners (Change Order 03) — Door: Owner
+  clinical_practice_owners: [
+    '86210', '86220', '86230', '86900', '75000',
+  ],
+  // 8. Financial & sales-pressure firms (Change Order 03) — Door: Owner
+  financial_sales_pressure: [
+    '66190', '66220', '68310', '78109', '78200',
+  ],
 };
 
 // Sector sets the DEFAULT door/tag (Owner / People / Covenant); manual
 // qualification can override per firm. See step 7 tag set.
 const SECTOR_DOOR_DEFAULT = {
-  professional_services:   'Owner',
-  construction_trades:     'Owner',
-  defence_marine:          'Covenant',
-  care_providers:          'People',
-  logistics_warehousing:   'People',
-  tech_software:           'Owner',
+  professional_services:    'Owner',
+  construction_trades:      'Owner',
+  defence_marine:           'Covenant',
+  care_providers:           'People',
+  logistics_warehousing:    'People',
+  tech_software:            'Owner',
+  clinical_practice_owners: 'Owner',
+  financial_sales_pressure: 'Owner',
 };
+
+// LinkedIn people-search personas — reused by both the detail-panel row
+// (#dp-persona-chips, via renderPersonaChips) and the per-card row (via
+// _attachCardExtras). Default order below is the "no door yet" ordering;
+// _personaChipsForDoor re-sorts so personas matching the active door come first.
+const PERSONA_CHIPS = [
+  { key: 'ownermd',  label: 'Owner/MD',               q: '("owner" OR "managing director" OR "MD")', doors: ['Owner'] },
+  { key: 'hrpeople', label: 'HR/People',              q: '("HR" OR "people" OR "human resources")',   doors: ['People'] },
+  { key: 'wellbeing',label: 'Wellbeing',              q: '("wellbeing" OR "wellness")',               doors: ['People'] },
+  { key: 'afc',      label: 'Armed Forces Champion',  q: '"armed forces champion"',                   doors: ['Covenant'] },
+  { key: 'all',      label: 'All staff',              q: '',                                          doors: [] }
+];
+function _personaChipsForDoor(door) {
+  var arr = PERSONA_CHIPS.slice();
+  arr.sort(function(a, b) {
+    var am = a.doors.indexOf(door) !== -1 ? 0 : 1;
+    var bm = b.doors.indexOf(door) !== -1 ? 0 : 1;
+    return am - bm;
+  });
+  return arr;
+}
 
 // [DRAFT] Placeholder copy only — real variant copy arrives from the business
 // documents. Care-group (People) framing is deliberate: staff wellbeing,
@@ -1400,6 +1262,46 @@ function copyEmailVariant() {
   navigator.clipboard.writeText(text).then(function() {
     _showPipelineToast('Email variant copied (DRAFT placeholder)');
   }).catch(function() {});
+}
+
+// Step 2 (Qualify) signals — plain-English "Accounts: X · Age: Yy old" line,
+// reusing the existing size-proxy helpers. No badges/chips here, just text.
+function renderQualifySignals() {
+  const el = document.getElementById('dp-qualify-signals');
+  if (!el) return;
+  if (!currentProspect) { el.textContent = ''; return; }
+  const bits = [];
+  const badge = _accountsTypeBadge(currentProspect.accountsType);
+  if (badge) bits.push('Accounts: ' + badge.label.replace(/\s*accounts$/i, ''));
+  const ageLbl = _companyAgeLabel(currentProspect.date_of_creation);
+  if (ageLbl) bits.push('Age: ' + ageLbl);
+  el.textContent = bits.join(' · ');
+}
+
+// Step 3 (Reach) LinkedIn persona chips — rebuilds #dp-persona-chips from
+// PERSONA_CHIPS, ordered for the active door (dp-tag, falling back to the
+// sector's default door when dp-tag hasn't been set yet).
+function renderPersonaChips() {
+  const container = document.getElementById('dp-persona-chips');
+  if (!container) return;
+  const tagEl = document.getElementById('dp-tag');
+  const sectorEl = document.getElementById('dp-sector');
+  const door = (tagEl && tagEl.value) || (sectorEl && SECTOR_DOOR_DEFAULT[sectorEl.value]) || 'Owner';
+
+  container.innerHTML = '';
+  const label = document.createElement('span');
+  label.className = 'dp-li-label';
+  label.textContent = 'LinkedIn People Search:';
+  container.appendChild(label);
+
+  _personaChipsForDoor(door).forEach(function(p) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'dp-li-btn';
+    b.textContent = p.label;
+    b.onclick = function() { openDetailLinkedIn(p.key); };
+    container.appendChild(b);
+  });
 }
 
 // --- Step 9: Pressure Cost panel ---
@@ -1953,6 +1855,16 @@ Object.assign(SIC_DESCRIPTIONS, {
   '62090': 'Other IT service activities',
   '63110': 'Data processing & hosting',
   '63120': 'Web portals',
+  '86210': 'General medical practice',
+  '86220': 'Specialist medical practice',
+  '86230': 'Dental practice',
+  '86900': 'Other human health activities',
+  '75000': 'Veterinary activities',
+  '66190': 'Financial advisers & auxiliary intermediation',
+  '66220': 'Insurance agents & brokers',
+  '68310': 'Estate agencies',
+  '78109': 'Recruitment/employment agencies (other)',
+  '78200': 'Temporary employment agency activities',
 });
 
 // Keywords that indicate irrelevant companies with small or no site area
@@ -2081,6 +1993,7 @@ let _rawForSic = 0; // running count of raw items pulled for the current SIC, re
 let _nameQ    = '';
 let _sector   = '';
 let _county   = '';
+let _region   = 'South West'; // region preset scoping the county picker; '' = All UK
 let _minAge   = 0; // size proxy: minimum company age in years, 0 = any
 let _seen     = new Set();
 let _total    = 0;
@@ -2184,39 +2097,6 @@ function _parseOfficerName(chName) {
   return { firstName: _titleCase(firstRaw), lastName: _titleCase(lastRaw) };
 }
 
-function _parseTypedContactName(typedName) {
-  if (!typedName || typeof typedName !== 'string') return null;
-  // Strip common titles from the front
-  const cleaned = typedName.trim().replace(/^(mr|mrs|miss|ms|mx|dr|sir|prof|professor|rev|reverend)\.?\s+/i, '').trim();
-  if (!cleaned) return null;
-  // Split on whitespace, drop empty parts
-  const parts = cleaned.split(/\s+/).filter(p => p.length > 0);
-  if (parts.length < 2) return null;
-  // First part is firstName; last part is lastName. Middle names/initials are discarded — Find Email only needs first+last.
-  const firstName = _titleCase(parts[0].replace(/[^a-zA-Z\-']/g, ''));
-  const lastName = _titleCase(parts[parts.length - 1].replace(/[^a-zA-Z\-']/g, ''));
-  if (!firstName || !lastName) return null;
-  return { firstName, lastName };
-}
-
-function _resolveDomainForFindEmail() {
-  // Priority: cache (set by Use this match or by CH officers flow), then dp-website input.
-  if (currentProspect && currentProspect.number) {
-    const cached = _emailDomainCache.get(currentProspect.number);
-    if (cached) return cached;
-  }
-  const websiteEl = document.getElementById('dp-website');
-  if (websiteEl && websiteEl.value) {
-    try {
-      const u = new URL(websiteEl.value.startsWith('http') ? websiteEl.value : 'https://' + websiteEl.value);
-      return u.hostname.replace(/^www\./i, '');
-    } catch(e) {
-      return '';
-    }
-  }
-  return '';
-}
-
 // "SMITH, John Henry" -> "John Henry Smith" (used for Airtable Contact Name).
 function _formatOfficerNameForCRM(chName) {
   if (!chName || typeof chName !== 'string') return chName || '';
@@ -2288,110 +2168,12 @@ async function _findOfficerEmail(firstName, lastName, domain, companyNumber) {
   }
 }
 
-async function runFindEmailFromContactField() {
-  const btn = document.getElementById('dp-findemail-btn');
-  const panel = document.getElementById('dp-findemail-result');
-  const contactEl = document.getElementById('dp-contact');
-
-  if (!contactEl) return;
-  const typedName = contactEl.value.trim();
-  const parsed = _parseTypedContactName(typedName);
-
-  // Validate name
-  if (!parsed) {
-    if (panel) {
-      panel.style.display = 'block';
-      panel.innerHTML = '<div style="color:#c44;padding:0.4rem 0;">Enter a contact name as "Firstname Lastname" (titles like Mr/Dr OK).</div>';
-    }
-    return;
-  }
-
-  // Validate domain
-  const domain = _resolveDomainForFindEmail();
-  if (!domain) {
-    if (panel) {
-      panel.style.display = 'block';
-      panel.innerHTML = '<div style="color:#c44;padding:0.4rem 0;">No domain available. Either run Search Company and Use this match, or enter the company website above.</div>';
-    }
-    return;
-  }
-
-  // Loading state
-  if (btn) { btn.disabled = true; btn.textContent = 'Searching...'; }
-  if (panel) {
-    panel.style.display = 'block';
-    panel.innerHTML = '<div style="opacity:0.7;padding:0.4rem 0;">Looking up email pattern via MillionVerifier...</div>';
-  }
-
-  // Check cache first
-  const companyNumber = (currentProspect && currentProspect.number) || '';
-  const cacheKey = `${companyNumber}|${parsed.firstName}|${parsed.lastName}|${domain}`.toLowerCase();
-  const cached = _emailCache.get(cacheKey);
-
-  let result;
-  if (cached) {
-    result = cached;
-  } else {
-    try {
-      const resp = await fetch(CH_PROXY + '/email-find', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName: parsed.firstName, lastName: parsed.lastName, domain })
-      });
-
-      if (resp.status === 429) {
-        let body = {};
-        try { body = await resp.json(); } catch(_) {}
-        result = { _capHit: true, error: body.error || 'daily_cap_exceeded' };
-      } else if (resp.status === 502) {
-        let body = {};
-        try { body = await resp.json(); } catch(_) {}
-        result = { _failed: true, error: body.error || 'verification_failed' };
-      } else if (!resp.ok) {
-        result = { _failed: true, error: 'http_' + resp.status };
-      } else {
-        result = await resp.json();
-        // Only cache real successful results
-        _emailCache.set(cacheKey, result);
-      }
-    } catch(e) {
-      result = { _failed: true, error: 'network_error' };
-    }
-  }
-
-  // Restore button state
-  if (btn) { btn.disabled = false; btn.textContent = 'Find Email'; }
-
-  // Render result
-  if (!panel) return;
-
-  if (result._capHit) {
-    panel.innerHTML = '<div style="color:#d49b00;padding:0.4rem 0;">Daily cap reached (100/day). Try again tomorrow.</div>';
-    return;
-  }
-
-  if (result._failed) {
-    panel.innerHTML = `<div style="color:#c44;padding:0.4rem 0;">Lookup failed: ${result.error || 'unknown error'}.</div>`;
-    return;
-  }
-
-  // Successful response — show the discovered email if any
-  const lines = [];
-  if (result.email) {
-    lines.push(`<div style="padding:0.4rem 0;"><strong>Found:</strong> <a href="mailto:${result.email}">${result.email}</a> <span style="opacity:0.7;font-size:0.75rem;">(${result.result || ''}${result.subresult ? ' · ' + result.subresult : ''})</span></div>`);
-    // Auto-fill dp-email if currently empty
-    const emailEl = document.getElementById('dp-email');
-    if (emailEl && !emailEl.value.trim()) {
-      emailEl.value = result.email;
-      emailEl.style.background = '#e6f4ea';
-      setTimeout(() => { emailEl.style.background = ''; }, 1200);
-    }
-  } else if (result.pattern) {
-    lines.push(`<div style="padding:0.4rem 0;">Pattern discovered: <code>${result.pattern}</code>. No verified email returned.</div>`);
-  } else {
-    lines.push('<div style="opacity:0.7;padding:0.4rem 0;">No email pattern found for this domain.</div>');
-  }
-  panel.innerHTML = lines.join('');
+// Opens a plain Google search for the prospect's contact email — no scraping,
+// no lookup service. Replaces the old automated /email-find pattern-lookup path.
+function searchForEmail() {
+  if (!currentProspect || !currentProspect.name) return;
+  var q = '"' + currentProspect.name + '" email contact';
+  window.open('https://www.google.com/search?q=' + encodeURIComponent(q), '_blank', 'noopener');
 }
 
 function _copyToClipboard(text, btn) {
@@ -2688,7 +2470,7 @@ function _buildDpMeta(parts) {
   return out.length ? out.join(' | ') : 'Manual entry';
 }
 
-function _attachCardExtras(card, companyName, companyNum) {
+function _attachCardExtras(card, companyName, companyNum, door) {
   // Officers button — appended to the existing card button row (Copy/Search), using .sbtn-style amber.
   // (Was originally inserted before a Dismiss button; Dismiss now lives in the detail panel.)
   var sbtn = card.querySelector('.sbtn');
@@ -2748,12 +2530,8 @@ function _attachCardExtras(card, companyName, companyNum) {
     var liRow = document.createElement('div');
     liRow.className = 'pc-li-row';
     var quoted = '"' + _cleanCompanyName(companyName) + '"';
-    [
-      { label: 'Estates',     q: '"estates" '     + quoted },
-      { label: 'Facilities',  q: '"facilities" '  + quoted },
-      { label: 'Procurement', q: '"procurement" ' + quoted },
-      { label: 'All staff',   q: quoted },
-    ].forEach(function(item) {
+    _personaChipsForDoor(door).forEach(function(item) {
+      var q = item.q ? (item.q + ' ' + quoted) : quoted;
       var b = document.createElement('button');
       b.className = 'libtn';
       b.type = 'button';
@@ -2761,7 +2539,7 @@ function _attachCardExtras(card, companyName, companyNum) {
       b.textContent = item.label;
       b.addEventListener('click', function(e) {
         e.stopPropagation();
-        var url = 'https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(item.q);
+        var url = 'https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(q);
         window.open(url, '_blank', 'noopener');
       });
       liRow.appendChild(b);
@@ -2770,17 +2548,22 @@ function _attachCardExtras(card, companyName, companyNum) {
   }
 }
 
+function _geoLabel() {
+  return _county || _region || 'All UK';
+}
+
 async function searchCompanies() {
   _sector   = document.getElementById('s-sector').value;
+  _region   = document.getElementById('s-region').value;
   _county   = document.getElementById('s-county').value;
   _minAge   = Number(document.getElementById('s-min-age').value) || 0;
   _nameQ    = document.getElementById('s-name').value.trim();
   var el    = document.getElementById('search-results');
   var lm    = document.getElementById('load-more-wrap');
 
-  // Validation. Resurgam is Devon & Cornwall only — there is no nationwide
-  // mode, so an empty county ("Any (Devon & Cornwall)") is always valid; it
-  // just means search both counties instead of one.
+  // Validation. National scope restored (Change Order 03) — an empty county
+  // ("Any (<region>)") is always valid; it just means search every county in
+  // the selected region (or all UK) instead of one specific county.
   var hasName = _nameQ && _nameQ.length >= 3;
   if (!hasName && !_sector) {
     el.innerHTML = '<div class="error-msg">Enter a company name (3 or more characters) or pick a sector to search.</div>';
@@ -2795,7 +2578,17 @@ async function searchCompanies() {
   _total    = 0;
   _widenedSearch = false;
 
-  el.innerHTML = '<div class="loading-msg">Searching ' + _county + ' by SIC code...</div>';
+  // Soft rate-limit warning. Worst case per SIC code is _RAW_CAP/100 = 10
+  // pages (one request each); CH's advanced-search budget is 600 requests
+  // per 5 minutes. Warn well under that so a broad "All UK" sector search
+  // doesn't run into it unannounced. Non-blocking — the search still runs.
+  var worstCaseRequests = _sicList.length * (_RAW_CAP / 100);
+  if (worstCaseRequests > 400) {
+    el.innerHTML = '<div class="error-msg" style="background:#fff8e6;color:#8a6400;">Heads up: this search plan is up to ' +
+      worstCaseRequests + ' requests against Companies House’s 600-per-5-minute limit. It will still run, staggered to stay under the limit, but a narrower county or region will be faster.</div>';
+  }
+
+  el.innerHTML = (worstCaseRequests > 400 ? el.innerHTML : '') + '<div class="loading-msg">Searching ' + _geoLabel() + ' by SIC code...</div>';
   lm.style.display = 'none';
 
   await _fetchBatch(el, true);
@@ -2986,7 +2779,7 @@ async function _fetchBatch(el, isFirst) {
         var companyNum = num;
         card.querySelector('.cbtn').addEventListener('click', function(e){ e.stopPropagation(); copyName(companyName); });
         card.querySelector('.sbtn').addEventListener('click', function(e){ e.stopPropagation(); searchOnline(companyName); });
-        _attachCardExtras(card, companyName, companyNum);
+        _attachCardExtras(card, companyName, companyNum, SECTOR_DOOR_DEFAULT[_sector]);
         _applyInPipelineFlag(card, companyNum);
         var norm = {
           title: name, company_number: num, company_type: c.company_type || '',
@@ -3022,7 +2815,7 @@ async function _fetchBatch(el, isFirst) {
 
   // Show progress
   if (isFirst) {
-    el.innerHTML = '<div class="loading-msg">Searching ' + _county + ' for SIC ' + sic + '... (' + dbg + ')</div>';
+    el.innerHTML = '<div class="loading-msg">Searching ' + _geoLabel() + ' for SIC ' + sic + '... (' + dbg + ')</div>';
   }
 
   try {
@@ -3041,6 +2834,10 @@ async function _fetchBatch(el, isFirst) {
 
     var url = CH_PROXY + '/advanced-search/companies?' + params.toString();
 
+    // Stagger: CH's advanced-search budget is 600 requests per 5 minutes
+    // (2/sec average). 350ms between requests caps us well under that even
+    // on a long "All UK" run across every SIC code in a sector.
+    await new Promise(function(resolve) { setTimeout(resolve, 350); });
     var resp = await fetch(url);
 
     if (resp.status === 404) {
@@ -3067,7 +2864,7 @@ async function _fetchBatch(el, isFirst) {
 
     // Show raw count before filtering
     if (isFirst && rawItems.length > 0) {
-      el.innerHTML = '<div class="loading-msg">Found ' + rawItems.length + ' raw results in ' + _county + ' SIC ' + sic + ' (rawForSic=' + _rawForSic + ') — filtering...</div>';
+      el.innerHTML = '<div class="loading-msg">Found ' + rawItems.length + ' raw results in ' + _geoLabel() + ' SIC ' + sic + ' (rawForSic=' + _rawForSic + ') — filtering...</div>';
     }
 
     var items = rawItems.filter(function(c) {
@@ -3077,7 +2874,7 @@ async function _fetchBatch(el, isFirst) {
     });
 
     items = items.filter(function(c) { return !isExcluded(c.company_name || c.title || c.name || ''); });
-    items = items.filter(function(c) { return _matchesResurgamTowns(c, _county); });
+    items = items.filter(function(c) { return _matchesResurgamTowns(c, _county, _region); });
     if (_minAge) items = items.filter(function(c) { var y = _companyAgeYears(c.date_of_creation); return y === null || y >= _minAge; });
     items = _removeAgents(items);
 
@@ -3105,7 +2902,7 @@ async function _fetchBatch(el, isFirst) {
 
     // Render results
     var sicLbl = _sicLabel(sic);
-    var status = _total + ' results in ' + _county + ' (' + sicLbl + ')';
+    var status = _total + ' results in ' + _geoLabel() + ' (' + sicLbl + ')';
     if (isFirst) {
       el.innerHTML = '<div class="results-header" id="res-count">' + status + '</div>';
     } else {
@@ -3169,7 +2966,7 @@ async function _fetchBatch(el, isFirst) {
       card.querySelector('.sbtn').addEventListener('click', function(e) {
         e.stopPropagation(); searchOnline(companyName);
       });
-      _attachCardExtras(card, companyName, companyNum);
+      _attachCardExtras(card, companyName, companyNum, SECTOR_DOOR_DEFAULT[_sector]);
       _applyInPipelineFlag(card, companyNum);
 
       var norm = {
@@ -3223,7 +3020,6 @@ async function selectProspect(company, cardEl, sectorKey) {
   });
   document.getElementById('dp-address').value = 'Looking up address...';
   document.getElementById('dp-address').style.color = '#999';
-  document.getElementById('dp-sitearea').value = '';
   document.getElementById('dp-contact').value = '';
   document.getElementById('dp-job-title').value = '';
   document.getElementById('dp-email').value = '';
@@ -3240,8 +3036,8 @@ async function selectProspect(company, cardEl, sectorKey) {
   currentProspect.tag = tagSel ? tagSel.value : 'Owner';
   renderEmailVariantPreview();
   renderPressureCost();
-  // Set Track default — Standard unless currentProspect carries activeSitesCount/track from upstream.
-  _setTrackDefault();
+  renderPersonaChips();
+  renderQualifySignals();
 
   // Build badges
   const badgesEl = document.getElementById('dp-badges');
@@ -3256,20 +3052,8 @@ async function selectProspect(company, cardEl, sectorKey) {
   const lkBtn = document.getElementById('dp-lookup-btn');
   if (lkBtn) lkBtn.style.display = 'none';
   _resetDetailLookupPanel();
-  _hideChAddressSwap();
 
   document.getElementById('main-area').scrollTo(0, 0);
-
-  // Reset address-row buttons to default visibility — applyPlacesMatch may hide
-  // them if the auto-fire below succeeds, but we don't want previous prospect state to carry over.
-  _restoreDefaultAddrButtons();
-
-  // Auto-fire Google Places lookup in parallel with the CH /company enrichment below.
-  // Reuses the same handler as the manual Search Company button so all UI state stays consistent.
-  // Guard avoids the alert path inside runPlacesLookup when name is missing.
-  if (currentProspect && currentProspect.name) {
-    runPlacesLookup();
-  }
 
   // Fetch full company profile for address + account type
   try {
@@ -3309,6 +3093,7 @@ async function selectProspect(company, cardEl, sectorKey) {
         const sics = d.sic_codes.slice(0,2).join(', ');
         document.getElementById('dp-meta').textContent += ` | SIC: ${sics}`;
       }
+      renderQualifySignals();
     }
   } catch(e) {}
 
@@ -3326,7 +3111,8 @@ async function selectProspect(company, cardEl, sectorKey) {
   // subset of fields when it returns, which is the intended fresh-data path.
   _hydrateDetailFromExistingSave();
 
-  document.getElementById('dp-sitearea').focus();
+  const hcEl = document.getElementById('dp-headcount');
+  if (hcEl) hcEl.focus();
 }
 
 function copyAddress() {
@@ -3353,56 +3139,6 @@ function openMaps() {
   window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr) + '&layer=satellite', '_blank');
 }
 
-function openEarth() {
-  // Require Places-sourced coordinates for precision.
-  if (!currentProspect || !currentProspect.location || typeof currentProspect.location.lat !== 'number' || typeof currentProspect.location.lng !== 'number') {
-    alert('Precise site coordinates not available yet.\n\nClick Search Company and then Use this match on the correct Google Places result. Once that\'s done, Open Earth will download a KML file pinned to the exact site for Google Earth Pro.');
-    return;
-  }
-
-  const lat = currentProspect.location.lat;
-  const lng = currentProspect.location.lng;
-  const placemarkName = (currentProspect.placesName || currentProspect.name || 'Site').replace(/[<>&"']/g, '');
-  const description = (currentProspect.address || '').replace(/[<>&"']/g, '');
-
-  const kml = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-  <Document>
-    <name>${placemarkName}</name>
-    <Placemark>
-      <name>${placemarkName}</name>
-      <description>${description}</description>
-      <Point>
-        <coordinates>${lng},${lat},0</coordinates>
-      </Point>
-      <LookAt>
-        <longitude>${lng}</longitude>
-        <latitude>${lat}</latitude>
-        <altitude>0</altitude>
-        <range>300</range>
-        <tilt>0</tilt>
-        <heading>0</heading>
-      </LookAt>
-    </Placemark>
-  </Document>
-</kml>`;
-
-  // Build a safe filename from the placemark name.
-  const safeFilename = placemarkName.replace(/[^a-zA-Z0-9_\-]+/g, '_').replace(/^_+|_+$/g, '') || 'site';
-
-  // Trigger download via Blob + anchor.
-  const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${safeFilename}.kml`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  // Revoke the blob URL after a short delay to let the download initiate.
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 function openLinkedIn() {
   const name = currentProspect ? currentProspect.name : '';
   if (!name) { alert('No company selected.'); return; }
@@ -3410,313 +3146,11 @@ function openLinkedIn() {
 }
 
 // ============================================================
-// Find trading address — slow web-research call (10-30s) to the Worker's
-// /find-site endpoint. User-click only, never auto-fired. Used when the
-// CH registered office is an accountant or director's home and Places
-// didn't find the real operating site.
-// ============================================================
-
-async function findTradingAddress() {
-  if (!currentProspect || !currentProspect.name) {
-    alert('No prospect loaded.');
-    return;
-  }
-  const btn = document.getElementById('dp-findsite-btn');
-  const panel = document.getElementById('dp-findsite-panel');
-  if (!btn) return;
-  if (btn.disabled) return; // Double-click guard.
-
-  // Build request body: only keys whose values actually exist.
-  const body = { companyName: currentProspect.name };
-  if (currentProspect.number) body.companyNumber = currentProspect.number;
-  if (currentProspect.registeredOffice) body.registeredAddress = currentProspect.registeredOffice;
-
-  // Sector: only when we have prospect-specific SIC info from the CH /company fetch.
-  // dp-sector defaults to the first option for everyone so it's not reliable as a "we know" signal.
-  if (currentProspect.sics && currentProspect.sics.length > 0) {
-    const firstSic = currentProspect.sics[0];
-    const desc = (typeof SIC_DESCRIPTIONS !== 'undefined' && SIC_DESCRIPTIONS[firstSic]) || '';
-    if (desc) body.sector = desc;
-  }
-
-  // Director surnames: only when officers have already been fetched (cached from a prior click).
-  if (currentProspect.number && typeof _officersCache !== 'undefined' && _officersCache.has(currentProspect.number)) {
-    const data = _officersCache.get(currentProspect.number);
-    const items = (data && data.officers && data.officers.items) || [];
-    const surnames = items
-      .filter(function(o) { return !o.resigned_on; })
-      .map(function(o) {
-        const n = (o && o.name) || '';
-        const idx = n.indexOf(',');
-        return idx > 0 ? n.slice(0, idx).trim() : '';
-      })
-      .filter(function(s) { return s.length > 0; });
-    if (surnames.length > 0) body.directorSurnames = surnames;
-  }
-
-  // Loading state + double-click guard.
-  btn.disabled = true;
-  const origLabel = btn.dataset.origLabel || btn.textContent.trim();
-  btn.dataset.origLabel = origLabel;
-  btn.textContent = 'Searching…';
-  if (panel) {
-    panel.style.display = 'block';
-    panel.innerHTML = '<div style="opacity:0.7;font-size:0.85rem;padding:0.5rem;background:#f5f5f7;border-radius:6px;">Searching for trading address — this can take 10–30 seconds…</div>';
-  }
-
-  let respJson = null;
-  let errMsg = '';
-  try {
-    const resp = await fetch(CH_PROXY + '/find-site', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (!resp.ok) {
-      errMsg = 'Search failed (HTTP ' + resp.status + '). Try again later.';
-    } else {
-      respJson = await resp.json();
-    }
-  } catch (e) {
-    errMsg = 'Search failed: ' + ((e && e.message) || 'network error') + '.';
-  }
-
-  btn.disabled = false;
-  btn.textContent = origLabel;
-
-  if (errMsg) {
-    if (panel) panel.innerHTML = '<div style="color:#c44;font-size:0.85rem;padding:0.5rem;background:#fee;border-radius:6px;">' + errMsg + '</div>';
-    return;
-  }
-
-  // Stash the new multi-site fields on currentProspect so saveProspectToAirtable
-  // can read them later. Tool-side cap at 15 even if the Worker returns more.
-  if (respJson && currentProspect) {
-    const isMultiSite = (typeof respJson.isMultiSite === 'boolean') ? respJson.isMultiSite : null;
-    const siteCount   = (Number.isInteger(respJson.siteCount) && respJson.siteCount >= 0) ? respJson.siteCount : 0;
-    const branchesRaw = Array.isArray(respJson.branches) ? respJson.branches : [];
-    const branches    = branchesRaw.filter(function(b){ return b && typeof b === 'object'; }).slice(0, 15);
-    currentProspect.findSiteResult = { isMultiSite: isMultiSite, siteCount: siteCount, branches: branches };
-    _applyMultiSiteClassification(siteCount);
-  }
-
-  _renderFindTradingAddressResults(respJson, panel);
-}
-
-// Classify the prospect in memory based on siteCount. 2–15 = target Multi-Site;
-// >15 = too big (procurement-led); 0/1 = no change. Touches dp-track and the
-// Dismiss button only; does not touch Airtable. Idempotent.
-function _applyMultiSiteClassification(siteCount) {
-  const trackEl   = document.getElementById('dp-track');
-  const dismissBtn = document.querySelector('.dp-btn-dismiss');
-  // Always reset any prior prominent-Dismiss styling so re-runs are clean.
-  if (dismissBtn) {
-    dismissBtn.style.boxShadow = '';
-    dismissBtn.style.transform = '';
-    dismissBtn.style.fontSize  = '';
-    dismissBtn.style.padding   = '';
-  }
-  if (siteCount >= 2 && siteCount <= 15) {
-    if (trackEl) trackEl.value = 'Multi-Site';
-    if (currentProspect) currentProspect.track = 'Multi-Site';
-  } else if (siteCount > 15) {
-    if (dismissBtn) {
-      dismissBtn.style.boxShadow = '0 0 0 3px #fbbf24';
-      dismissBtn.style.fontSize  = '1rem';
-      dismissBtn.style.padding   = '0.6rem 1.2rem';
-    }
-    // Intentionally do NOT change track on >15 prospects.
-  }
-  // siteCount 0 or 1: leave track unchanged; reset above already cleared dismiss styling.
-}
-
-// Reads existing DOM state (the Places confidence text in #dp-places-panel and
-// the value of #dp-sitearea) and updates the two stage hint lines at the top of
-// LOCATE and MEASURE. Pure read-side helper — touches no other function. The
-// 500 ms interval picks up both manual typing and programmatic state changes
-// (runPlacesLookup mutates dp-places-panel via innerHTML), which doesn't
-// dispatch the events we'd otherwise need to listen for.
-function _refreshStageHints() {
-  const locateHint  = document.getElementById('dp-locate-hint');
-  const measureHint = document.getElementById('dp-measure-hint');
-  if (!locateHint && !measureHint) return;
-  const goodCol = '#15803d';                 // matches existing tag-pipeline-multi-site / addr-confirm green
-  const warnCol = '#92400e';                 // matches existing amber warning swatch (find-site over-15 banner)
-  if (locateHint) {
-    const places = document.getElementById('dp-places-panel');
-    const placesText = places ? (places.textContent || '').toLowerCase() : '';
-    let placesConf = '';
-    if      (/confidence:\s*high/.test(placesText))      placesConf = 'high';
-    else if (/confidence:\s*ambiguous/.test(placesText)) placesConf = 'ambiguous';
-    else if (/confidence:\s*low/.test(placesText))       placesConf = 'low';
-    else if (/confidence:\s*none/.test(placesText))      placesConf = 'none';
-    // high or ambiguous → green confirmed; low / none / absent → amber.
-    if (placesConf === 'high' || placesConf === 'ambiguous') {
-      locateHint.textContent = 'Site confirmed. On to the site area.';
-      locateHint.style.color = goodCol;
-    } else {
-      locateHint.textContent = 'Google could not confirm the site. Try Find Trading Address.';
-      locateHint.style.color = warnCol;
-    }
-  }
-  if (measureHint) {
-    const areaEl  = document.getElementById('dp-sitearea');
-    const areaVal = areaEl ? Number(areaEl.value) : 0;
-    if (Number.isFinite(areaVal) && areaVal > 0) {
-      measureHint.textContent = 'Site area captured. Now reach the decision-maker.';
-      measureHint.style.color = goodCol;
-    } else {
-      measureHint.textContent = 'Get the site area before quoting.';
-      measureHint.style.color = warnCol;
-    }
-  }
-}
-setInterval(_refreshStageHints, 500);
-
-function _renderFindTradingAddressResults(respJson, panel) {
-  if (!panel) return;
-  const candidates = (respJson && Array.isArray(respJson.candidates)) ? respJson.candidates : [];
-  const website = (respJson && respJson.website) ? String(respJson.website).trim() : '';
-
-  // Multi-site panel — additive, renders ABOVE the website header and candidates.
-  // Visible when isMultiSite is non-null AND siteCount >= 1. The classification
-  // (badge/warning + Dismiss prominence + track) is applied separately by
-  // _applyMultiSiteClassification before this render runs.
-  const ms_isMulti = (respJson && typeof respJson.isMultiSite === 'boolean') ? respJson.isMultiSite : null;
-  const ms_count   = (respJson && Number.isInteger(respJson.siteCount) && respJson.siteCount >= 0) ? respJson.siteCount : 0;
-  const ms_branchesRaw = (respJson && Array.isArray(respJson.branches)) ? respJson.branches : [];
-  const ms_branches    = ms_branchesRaw.filter(function(b){ return b && typeof b === 'object'; }).slice(0, 15);
-  const ms_confColours = { high: '#2a9d4a', medium: '#d49b00', low: '#c44' };
-  let multiSiteHeader = '';
-  if (ms_isMulti !== null && ms_count >= 1) {
-    let headingHtml;
-    let bannerHtml = '';
-    if (ms_count === 1) {
-      headingHtml = '<strong>Single site</strong>';
-    } else if (ms_count >= 2 && ms_count <= 15) {
-      headingHtml = '<strong>Multi-site: ' + ms_count + ' sites found</strong>'
-        + ' <span style="background:#16a34a;color:white;padding:0.15rem 0.5rem;border-radius:4px;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-left:0.5rem;">Target: multi-site</span>';
-    } else {
-      // siteCount > 15 → procurement-scale; amber warning. (Dismiss is made prominent
-      // by _applyMultiSiteClassification; we just render the explanation here.)
-      headingHtml = '<strong>Multi-site: ' + ms_count + ' sites found</strong>';
-      bannerHtml  = '<div style="background:#fef3c7;border:1px solid #fbbf24;color:#92400e;padding:0.5rem 0.7rem;border-radius:6px;margin-bottom:0.5rem;font-size:0.8rem;"><strong>' + ms_count + ' sites:</strong> likely procurement-led, outside target profile.</div>';
-    }
-    const branchRows = ms_branches.map(function(b) {
-      const town    = b.town ? '<span style="font-weight:600;">' + b.town + '</span> &mdash; ' : '';
-      const addr    = b.address ? String(b.address) : '';
-      const pc      = b.postcode ? ' <span style="color:#888;font-size:0.75rem;">(' + b.postcode + ')</span>' : '';
-      const conf    = (b.confidence || '').toString().toLowerCase();
-      const cc      = ms_confColours[conf] || '#888';
-      const cLabel  = (b.confidence || 'unknown').toString();
-      const srcLink = b.sourceUrl
-        ? '<a href="' + b.sourceUrl + '" target="_blank" rel="noopener" style="font-size:0.65rem;color:var(--accent);text-decoration:none;margin-left:0.4rem;">Source &#8599;</a>'
-        : '';
-      return '<div style="padding:0.4rem 0.6rem;border-radius:4px;background:#fff;border:1px solid #e0e0e5;margin-bottom:0.3rem;font-size:0.8rem;">'
-           +   '<div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">'
-           +     '<div style="flex:1;min-width:0;">' + town + addr + pc + '</div>'
-           +     '<span style="background:' + cc + ';color:white;padding:0.05rem 0.4rem;border-radius:3px;font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">' + cLabel + '</span>'
-           +     srcLink
-           +   '</div>'
-           + '</div>';
-    }).join('');
-    multiSiteHeader = '<div style="padding:0.6rem 0.75rem;margin-bottom:0.7rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;">'
-                    + bannerHtml
-                    + '<div style="font-size:0.9rem;margin-bottom:0.5rem;">' + headingHtml + '</div>'
-                    + (ms_branches.length > 0
-                        ? branchRows
-                        : '<div style="opacity:0.6;font-size:0.75rem;">No branch addresses extracted.</div>')
-                    + '</div>';
-  }
-
-  if (candidates.length === 0) {
-    panel.innerHTML = multiSiteHeader + '<div style="opacity:0.7;font-size:0.85rem;padding:0.5rem;background:#f5f5f7;border-radius:6px;">No trading address found.</div>';
-    return;
-  }
-
-  // Header line — only when a website was returned. Normalised href (adds https:// to bare domains);
-  // displayed text shows whatever the Worker returned, raw.
-  let websiteHeader = '';
-  if (website) {
-    const href = /^https?:\/\//i.test(website) ? website : 'https://' + website;
-    websiteHeader = '<div style="font-size:0.8rem;padding:0.4rem 0.6rem;margin-bottom:0.5rem;background:#eef6ff;border:1px solid #c7e0ff;border-radius:6px;">'
-      + '<strong>Website found:</strong> '
-      + '<a href="' + href + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">' + website + '</a>'
-      + '</div>';
-  }
-
-  const confColours = { high: '#2a9d4a', medium: '#d49b00', low: '#c44' };
-  const blocks = candidates.map(function(c) {
-    const conf = (c.confidence || '').toString().toLowerCase();
-    const confColour = confColours[conf] || '#888';
-    const confLabel = (c.confidence || 'unknown').toString();
-    // JSON.stringify safely escapes for the inline onclick (matches the applyPlacesMatch pattern elsewhere in this file).
-    const onclickJs = '_useTradingAddress(' + JSON.stringify(c.address || '') + ', ' + JSON.stringify(c.postcode || '') + ', ' + JSON.stringify(website) + ')';
-    const sourceLink = c.sourceUrl
-      ? '<a href="' + c.sourceUrl + '" target="_blank" rel="noopener" style="font-size:0.7rem;color:var(--accent);text-decoration:none;">Source ↗</a>'
-      : '';
-    return '<div style="padding:0.6rem 0.75rem;border-radius:6px;background:#fff;border:1px solid #e0e0e5;margin-bottom:0.5rem;font-size:0.85rem;">' +
-             '<div style="display:flex;align-items:flex-start;gap:0.5rem;margin-bottom:0.3rem;flex-wrap:wrap;">' +
-               '<strong style="flex:1;min-width:0;">' + (c.address || '(no address)') + '</strong>' +
-               '<span style="background:' + confColour + ';color:white;padding:0.15rem 0.5rem;border-radius:4px;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;flex-shrink:0;">' + confLabel + '</span>' +
-             '</div>' +
-             (c.rationale ? '<div style="font-size:0.75rem;color:#666;margin-bottom:0.4rem;font-style:italic;">' + c.rationale + '</div>' : '') +
-             '<div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">' +
-               sourceLink +
-               '<button type="button" onclick=\'' + onclickJs.replace(/'/g, "&#39;") + '\' style="background:var(--accent);color:white;border:none;padding:0.3rem 0.7rem;border-radius:6px;font-size:0.7rem;font-weight:700;cursor:pointer;letter-spacing:0.02em;text-transform:uppercase;margin-left:auto;">Use this</button>' +
-             '</div>' +
-           '</div>';
-  }).join('');
-  panel.innerHTML = multiSiteHeader + websiteHeader + blocks;
-}
-
-async function _useTradingAddress(address, postcode, website) {
-  // Update dp-address (mirrors the applyPlacesMatch pattern).
-  const addrEl = document.getElementById('dp-address');
-  if (addrEl) {
-    addrEl.value = address || '';
-    addrEl.style.color = '';
-  }
-  if (currentProspect) currentProspect.address = address || '';
-
-  // Populate dp-website ONLY when empty — never overwrite a user-entered value.
-  if (website) {
-    const websiteEl = document.getElementById('dp-website');
-    if (websiteEl && !(websiteEl.value || '').trim()) {
-      websiteEl.value = website;
-      if (currentProspect) currentProspect.website = website;
-    }
-  }
-
-  // Stash the bare email domain on currentProspect (so the Officers panel can pre-fill the
-  // EMAIL DOMAIN input next time it renders), and fill the live input if it's already on-screen
-  // and empty. Mirrors the applyPlacesMatch addition.
-  if (website && currentProspect) {
-    const bare = _bareDomain(website);
-    if (bare) {
-      if (!currentProspect.emailDomain) currentProspect.emailDomain = bare;
-      const liveDomainInput = document.querySelector('.dp-domain-input, .pc-domain-input');
-      if (liveDomainInput && !(liveDomainInput.value || '').trim()) {
-        liveDomainInput.value = bare;
-        if (currentProspect.number) _emailDomainCache.set(currentProspect.number, bare);
-      }
-    }
-  }
-
-  // Geocode the postcode and update location on the prospect record.
-  if (postcode) {
-    const geo = await geocodePostcode(postcode);
-    if (geo && currentProspect) {
-      currentProspect.location = { lat: geo.lat, lng: geo.lng };
-    }
-  }
-}
-
-
-// ============================================================
 // Step 5a — dormant helpers (not wired into any flow yet).
 // Postcode geocoding, anchored Places confirmation, and Place-details
-// follow-up. Match the existing fetch style.
+// follow-up. Match the existing fetch style. (Formerly also home to Find
+// Trading Address / multi-site classification, removed — that subsystem
+// doesn't apply to Resurgam, a coaching business with no physical sites.)
 // ============================================================
 
 async function geocodePostcode(postcode) {
@@ -3772,12 +3206,15 @@ async function confirmPlaceDetails(placeId) {
 }
 
 // LinkedIn people-search quick row in the detail panel.
-// Role keyword (or empty for "all staff") + cleaned company name, exact-phrase quoted.
-function openDetailLinkedIn(role) {
+// Looks up the persona's query fragment by key (see PERSONA_CHIPS) + cleaned
+// company name, exact-phrase quoted.
+function openDetailLinkedIn(key) {
   const name = currentProspect ? currentProspect.name : '';
   if (!name) { alert('No company selected.'); return; }
   const quoted = '"' + _cleanCompanyName(name) + '"';
-  const q = (role && role !== 'all') ? ('"' + role + '" ' + quoted) : quoted;
+  const persona = PERSONA_CHIPS.find(function(p) { return p.key === key; });
+  const qFrag = persona ? persona.q : '';
+  const q = qFrag ? (qFrag + ' ' + quoted) : quoted;
   window.open('https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(q), '_blank', 'noopener');
 }
 
@@ -4284,6 +3721,7 @@ function pickLookupResult(idx) {
   currentProspect.number = item.company_number || '';
   currentProspect.type = item.company_type || '';
   currentProspect.status = item.company_status || 'active';
+  if (item.date_of_creation) currentProspect.date_of_creation = item.date_of_creation;
   // Populate registeredOffice from whichever shape the search result provided.
   // address_snippet is the standard search response; item.address is the advanced search response.
   if (!currentProspect.registeredOffice) {
@@ -4323,17 +3761,8 @@ function pickLookupResult(idx) {
   // Close + clear the lookup panel; reset any officers panel state.
   _resetDetailLookupPanel();
   _resetDetailOfficersPanel();
-
-  // Reset address-row buttons to default visibility (applyPlacesMatch may re-hide below).
-  _restoreDefaultAddrButtons();
-  _setTrackDefault();
-
-  // Auto-fire Google Places lookup in parallel with the /company enrichment below.
-  // Reuses the same handler as the manual Search Company button so all UI state stays consistent.
-  // Guard avoids the alert path inside runPlacesLookup when name is missing.
-  if (currentProspect && currentProspect.name) {
-    runPlacesLookup();
-  }
+  renderQualifySignals();
+  renderPersonaChips();
 
   // Async enrich via /company/{number} — canonical name, full-accounts badge, SIC codes, CH address.
   fetch(CH_PROXY + '/company/' + encodeURIComponent(item.company_number))
@@ -4347,8 +3776,7 @@ function pickLookupResult(idx) {
       }
       const ra = d.registered_office_address;
       if (ra) {
-        const addrStr = [ra.address_line_1, ra.address_line_2, ra.locality, ra.region, ra.postal_code].filter(Boolean).join(', ');
-        if (addrStr) _showChAddressSwap(addrStr);
+        currentProspect.registeredOffice = _formatChRegisteredOffice(ra);
       }
       if (d.accounts && d.accounts.last_accounts) {
         const rawType = d.accounts.last_accounts.type || '';
@@ -4376,37 +3804,9 @@ function pickLookupResult(idx) {
         const sicsShort = d.sic_codes.slice(0, 2).join(', ');
         document.getElementById('dp-meta').textContent += ' | SIC: ' + sicsShort;
       }
+      renderQualifySignals();
     })
     .catch(function() { /* enrichment is best-effort */ });
-}
-
-function useChAddress() {
-  const valueEl = document.getElementById('dp-ch-address-value');
-  if (!valueEl) return;
-  const addr = valueEl.textContent || '';
-  if (!addr) return;
-  if (currentProspect) currentProspect.address = addr;
-  const da = document.getElementById('dp-address');
-  if (da) {
-    da.value = addr;
-    da.style.color = '';
-  }
-  _hideChAddressSwap();
-}
-
-function _showChAddressSwap(addr) {
-  const hint = document.getElementById('dp-ch-address-hint');
-  const value = document.getElementById('dp-ch-address-value');
-  if (!hint || !value) return;
-  value.textContent = addr;
-  hint.style.display = 'flex';
-}
-
-function _hideChAddressSwap() {
-  const hint = document.getElementById('dp-ch-address-hint');
-  if (hint) hint.style.display = 'none';
-  const value = document.getElementById('dp-ch-address-value');
-  if (value) value.textContent = '';
 }
 
 function _resetDetailLookupPanel() {
@@ -4423,11 +3823,6 @@ function clearDetail() {
   document.getElementById('welcome-screen').style.display = 'flex';
   _resetDetailOfficersPanel();
   _resetDetailLookupPanel();
-  _hideChAddressSwap();
-  _restoreDefaultAddrButtons();
-  // Reset Track to first option (Standard) so the next prospect load starts from a known baseline.
-  const trackSel = document.getElementById('dp-track');
-  if (trackSel) trackSel.value = 'Standard';
   currentProspect = null;
 }
 
@@ -4512,7 +3907,6 @@ function _hydrateDetailFromExistingSave() {
   var areaEff    = (c.siteArea && Number(c.siteArea) > 0)
                      ? Number(c.siteArea)
                      : ((l.siteArea && Number(l.siteArea) > 0) ? Number(l.siteArea) : 0);
-  var trackEff   = pick(c.track, l.track);
   var fillEmpty = function(el, val) {
     if (!el || !val) return;
     if ((el.value || '').trim() === '') el.value = val;
@@ -4530,8 +3924,6 @@ function _hydrateDetailFromExistingSave() {
       addrEl.style.color = '';
     }
   }
-  var areaEl = document.getElementById('dp-sitearea');
-  if (areaEl && areaEff && (areaEl.value || '').trim() === '') areaEl.value = areaEff;
   if (!currentProspect.phone        && phoneEff)    currentProspect.phone = phoneEff;
   if (!currentProspect.contact      && contactEff)  currentProspect.contact = contactEff;
   if (!currentProspect.jobTitle     && jobEff)      currentProspect.jobTitle = jobEff;
@@ -4540,7 +3932,6 @@ function _hydrateDetailFromExistingSave() {
   if (!currentProspect.siteAddress  && siteAddrEff) currentProspect.siteAddress = siteAddrEff;
   if (!currentProspect.address      && siteAddrEff) currentProspect.address = siteAddrEff;
   if (!currentProspect.siteArea     && areaEff)     currentProspect.siteArea = areaEff;
-  if (!currentProspect.track        && trackEff)    currentProspect.track = trackEff;
   if (!currentProspect.airtableCompanyId && c.recordId)         currentProspect.airtableCompanyId = c.recordId;
   if (!currentProspect.airtableSiteId    && c.siteRecordId)     currentProspect.airtableSiteId    = c.siteRecordId;
   if (!currentProspect.airtableCompanyId && l.airtableCompanyId) currentProspect.airtableCompanyId = l.airtableCompanyId;
@@ -4658,7 +4049,6 @@ async function dpCommitNameChange(nextName) {
 
 async function saveCurrentProspect() {
   if (!currentProspect) { alert('No prospect selected.'); return; }
-  const siteAreaRaw = parseFloat(document.getElementById('dp-sitearea').value);
   const sector = document.getElementById('dp-sector').value;
   const refNum = 'RSG-' + (Math.floor(Math.random()*90000)+10000);
   const tagEl = document.getElementById('dp-tag');
@@ -4668,7 +4058,6 @@ async function saveCurrentProspect() {
 
   const phoneEl = document.getElementById('dp-phone');
   const websiteEl = document.getElementById('dp-website');
-  const trackEl = document.getElementById('dp-track');
   // Read-modify-write defence: every form field falls back to the value
   // already on currentProspect when the input is empty, so a panel that
   // hasn't fully hydrated yet (or a field the surveyor never touched)
@@ -4691,9 +4080,7 @@ async function saveCurrentProspect() {
     headcount,
     accountsType: currentProspect.accountsType || '',
     companyAgeYears: _companyAgeYears(currentProspect.date_of_creation),
-    siteArea:   (Number.isFinite(siteAreaRaw) && siteAreaRaw > 0)
-                  ? siteAreaRaw
-                  : (Number(currentProspect.siteArea) || 0),
+    siteArea: Number(currentProspect.siteArea) || 0,
     number: currentProspect.number,
     refNum,
     contact:    keep(formContact, currentProspect.contact),
@@ -4702,7 +4089,6 @@ async function saveCurrentProspect() {
     phone:      keep(phoneEl   && phoneEl.value,   currentProspect.phone),
     website:    keep(websiteEl && websiteEl.value, currentProspect.website),
     registeredOffice: currentProspect && currentProspect.registeredOffice ? currentProspect.registeredOffice : '',
-    track:      keep(trackEl   && trackEl.value,   currentProspect.track),
     location: (currentProspect.location && typeof currentProspect.location.lat === 'number' && typeof currentProspect.location.lng === 'number') ? currentProspect.location : null,
     airtableCompanyId: currentProspect.airtableCompanyId || '',
     airtableSiteId:    currentProspect.airtableSiteId    || '',
@@ -4738,7 +4124,7 @@ async function saveCurrentProspect() {
     if (result.mode === 'local-only') {
       alert(`${entry.name} saved to the local pipeline.`);
     } else if (result.mode === 'updated-existing') {
-      alert(`Existing site updated to ${siteArea} m² for ${entry.name}.`);
+      alert(`Existing site updated to ${entry.siteArea} m² for ${entry.name}.`);
     } else if (result.mode === 'added-to-existing') {
       alert(`New site added under existing Company: ${entry.name}.`);
     } else {
@@ -4766,7 +4152,7 @@ function generateFromManual() {
   if (!name || !address || !siteArea || siteArea < 100) {
     const missing = [];
     if (!name) missing.push('Company Name');
-    if (!address) missing.push('Site Address');
+    if (!address) missing.push('Address');
     if (!siteArea) missing.push('Site Area');
     else if (siteArea < 100) missing.push('Site Area (minimum 100m²)');
     alert('Please provide: ' + missing.join(', ') + '.\n\nOther fields (Contact Name, Job Title, Email, Sector) are optional.');
@@ -4787,6 +4173,7 @@ function generateFromManual() {
   currentProspect = {
     name: name,
     address: address,
+    siteArea: siteArea,
     number: '',
     type: '',
     status: 'manual'
@@ -4802,12 +4189,13 @@ function generateFromManual() {
   const da = document.getElementById('dp-address');
   da.value = address;
   da.style.color = '';
-  document.getElementById('dp-sitearea').value = siteArea;
   document.getElementById('dp-contact').value = contact;
   document.getElementById('dp-job-title').value = jobTitle;
   document.getElementById('dp-email').value = email;
   const dpSector = document.getElementById('dp-sector');
   if (dpSector) dpSector.value = sector;
+  renderQualifySignals();
+  renderPersonaChips();
 
   // Badges row — keep parity with search-found cards (which show status + optional 'full accounts').
   document.getElementById('dp-badges').innerHTML = '<span class="tag tag-active">manual entry</span>';
@@ -4821,9 +4209,6 @@ function generateFromManual() {
   const lkBtnM = document.getElementById('dp-lookup-btn');
   if (lkBtnM) lkBtnM.style.display = '';
   _resetDetailLookupPanel();
-  _hideChAddressSwap();
-  _restoreDefaultAddrButtons();
-  _setTrackDefault();
 
   // Manual entries match against any prior save (localStorage by name, or
   // cache by recordId if we hit a same-name pipeline record) so re-typing
@@ -4873,8 +4258,9 @@ function loadSavedLocal(idx) {
   currentProspect = {
     name: p.name, address: p.address, number: p.number || '', type: '', status: 'active',
     registeredOffice: p.registeredOffice || '', phone: p.phone, contact: p.contact,
-    jobTitle: p.jobTitle, email: p.email, website: p.website, track: p.track,
-    tag: p.tag, headcount: p.headcount, siteArea: p.siteArea, location: p.location || null
+    jobTitle: p.jobTitle, email: p.email, website: p.website,
+    tag: p.tag, headcount: p.headcount, siteArea: p.siteArea, location: p.location || null,
+    accountsType: p.accountsType || ''
   };
   document.getElementById('welcome-screen').style.display = 'none';
   document.getElementById('detail-panel').style.display = 'block';
@@ -4882,7 +4268,6 @@ function loadSavedLocal(idx) {
   document.getElementById('dp-meta').textContent = _buildDpMeta({ number: p.number, type: '', date_of_creation: '' });
   const setVal = function(id, v) { const el = document.getElementById(id); if (el) el.value = v || ''; };
   setVal('dp-address', p.address);
-  setVal('dp-sitearea', p.siteArea);
   setVal('dp-contact', p.contact);
   setVal('dp-job-title', p.jobTitle);
   setVal('dp-email', p.email);
@@ -4895,7 +4280,8 @@ function loadSavedLocal(idx) {
   if (dpTag) dpTag.value = p.tag || SECTOR_DOOR_DEFAULT[p.sector] || 'Owner';
   renderEmailVariantPreview();
   renderPressureCost();
-  _setTrackDefault();
+  renderPersonaChips();
+  renderQualifySignals();
   const badgesEl = document.getElementById('dp-badges');
   if (badgesEl) badgesEl.innerHTML = '<span class="tag tag-active">saved</span>' + _doorTagChip(p.tag);
 }
@@ -4932,7 +4318,6 @@ function renderSaved() {
     const metaBits = [];
     metaBits.push((p.siteArea || 0) + 'm²');
     if (p.sector) metaBits.push(p.sector);
-    if (p.track) metaBits.push(p.track);
     if (p.refNum) metaBits.push(p.refNum);
     return '<div class="saved-item" onclick="loadSavedFromCache(\'' + safeRecId + '\')">' +
            '<div><div class="si-name">' + (p.name || '(Unnamed)') + '</div>' +
@@ -4995,7 +4380,6 @@ function loadSavedFromCache(recordId) {
   const emailEff    = pick(p.email, ls && ls.email);
   const websiteEff  = pick(p.website, ls && ls.website);
   const areaEff     = (p.siteArea && p.siteArea > 0) ? p.siteArea : ((ls && ls.siteArea) || '');
-  const trackEff    = pick(p.track, ls && ls.track);
   const tagEff       = pick(p.tag, ls && ls.tag) || 'Owner';
   const headcountEff = (p.headcount && p.headcount > 0) ? p.headcount : ((ls && ls.headcount) || '');
 
@@ -5012,10 +4396,10 @@ function loadSavedFromCache(recordId) {
     jobTitle: jobEff,
     email: emailEff,
     website: websiteEff,
-    track: trackEff,
     tag: tagEff,
     headcount: headcountEff,
-    activeSitesCount: p.activeSitesCount || 0,
+    siteArea: areaEff,
+    accountsType: (ls && ls.accountsType) || '',
     airtableCompanyId: p.recordId || (ls && ls.airtableCompanyId) || '',
     airtableSiteId:    p.siteRecordId || (ls && ls.airtableSiteId) || ''
   };
@@ -5035,8 +4419,6 @@ function loadSavedFromCache(recordId) {
 
   const da = document.getElementById('dp-address');
   if (da) { da.value = addrEff; da.style.color = ''; }
-  const dpSiteArea = document.getElementById('dp-sitearea');
-  if (dpSiteArea) dpSiteArea.value = areaEff;
   const dpContact = document.getElementById('dp-contact');
   if (dpContact) dpContact.value = contactEff;
   const dpJobTitle = document.getElementById('dp-job-title');
@@ -5067,21 +4449,17 @@ function loadSavedFromCache(recordId) {
   if (dpHeadcount) dpHeadcount.value = headcountEff;
   renderEmailVariantPreview();
   renderPressureCost();
+  renderPersonaChips();
+  renderQualifySignals();
 
-  // Track default reads currentProspect.track (just set) so this picks up the saved value.
-  _setTrackDefault();
-  // Badges row — show track + stage as informational pills (re-using the existing tag styling).
+  // Badges row — show stage as an informational pill (re-using the existing tag styling).
   const badgesEl = document.getElementById('dp-badges');
   if (badgesEl) {
-    const bits = ['<span class="tag tag-active">' + (p.stage || 'in pipeline') + '</span>'];
-    if (p.track) bits.push('<span class="tag tag-target">' + p.track + '</span>');
-    badgesEl.innerHTML = bits.join('');
+    badgesEl.innerHTML = '<span class="tag tag-active">' + (p.stage || 'in pipeline') + '</span>';
   }
   // Reset transient panels and address-row state.
   _resetDetailOfficersPanel();
   _resetDetailLookupPanel();
-  _hideChAddressSwap();
-  _restoreDefaultAddrButtons();
   // Officers / Look-up button visibility matches the SEARCH-found path when a CH number is present.
   const ofBtn = document.getElementById('dp-officers-btn');
   if (ofBtn) ofBtn.style.display = p.number ? '' : 'none';
@@ -5268,6 +4646,7 @@ function searchOnline(name) {
 // runs immediately and then every 30s thereafter. Idempotent — safe if called twice.
 startPipelineCachePolling();
 _updatePipelineStatusBar(); // reflect any prospects already saved locally from a prior session
+populateCountyOptions(); // default region (South West) populates the county list on load
 
 // Re-render the SAVED list on every pipeline-cache refresh. Covers the race
 // where the user opens the SAVED tab before the initial fetch resolves: the
@@ -5306,29 +4685,23 @@ function _wireEnterKeyHandlers() {
   // dp-lookup-btn lives in the detail panel, which isn't open from the manual tab.
   on('m-company', function() { focusOn('m-address'); });
 
-  // Detail panel — Site Address chain → Phone → Website → Site Area.
+  // Detail panel — Address chain → Phone → Website → Contact.
   on('dp-address', function() { focusOn('dp-phone'); });
   on('dp-phone',   function() { focusOn('dp-website'); });
-  on('dp-website', function() { focusOn('dp-sitearea'); });
-
-  // Site Area: always move to Contact Name.
-  on('dp-sitearea', function() { focusOn('dp-contact'); });
+  on('dp-website', function() { focusOn('dp-contact'); });
 
   // Detail panel — Contact chain → Job Title → Email.
   on('dp-contact',   function() { focusOn('dp-job-title'); });
   on('dp-job-title', function() { focusOn('dp-email'); });
 
-  // Email: Find Email if Email is empty AND Contact is populated;
-  // Save Prospect if Email is populated; no-op if both empty.
+  // Email: Search for email if Email is empty; Save Prospect if Email is populated.
   on('dp-email', function() {
-    const emailVal   = (document.getElementById('dp-email')   || {}).value;
-    const contactVal = (document.getElementById('dp-contact') || {}).value;
-    const haveEmail   = !!(emailVal   && emailVal.trim());
-    const haveContact = !!(contactVal && contactVal.trim());
+    const emailVal = (document.getElementById('dp-email') || {}).value;
+    const haveEmail = !!(emailVal && emailVal.trim());
     if (haveEmail) {
       saveCurrentProspect();
-    } else if (haveContact) {
-      runFindEmailFromContactField();
+    } else {
+      searchForEmail();
     }
   });
 }
