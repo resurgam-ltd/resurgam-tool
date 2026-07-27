@@ -43,6 +43,10 @@ stamp against current HEAD. Originated here: every prior "200 OK" check
 against this repo's Pages URL was unknowingly hitting an auto-generated
 Jekyll README placeholder (no index.html existed), not the deployed tool —
 now fixed, and the stamp below is the safeguard against it recurring.
+SELF-REFERENCE NOTE: a commit cannot embed its own hash, so a stamp-update
+commit's stamp always names its parent, not itself — that's expected, not a
+bug. Passing condition: the live stamp's hash is HEAD or HEAD's immediate
+parent, not necessarily an exact literal match to HEAD.
 
 # CONTEXT WALL
 No Nova asset, colour, key, or copy in this repo, ever, and the reverse. Origin
