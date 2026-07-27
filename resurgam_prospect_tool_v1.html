@@ -249,6 +249,7 @@ input, button, select, textarea { font-family: inherit; }
   <div class="tabs">
     <button class="tab active" onclick="switchTab('search')">Search</button>
     <button class="tab" onclick="switchTab('manual')">Manual</button>
+    <button class="tab" onclick="switchTab('covenant')">Covenant</button>
     <button class="tab" onclick="switchTab('saved')">Saved</button>
   </div>
 
@@ -338,8 +339,33 @@ input, button, select, textarea { font-family: inherit; }
         <option value="financial_sales_pressure">Financial &amp; Sales-Pressure Firms</option>
       </select>
     </div>
-    <div class="fg"><label>Site Area (m²)</label><input type="number" id="m-sitearea" placeholder="e.g. 2000" min="100" /></div>
     <button class="btn btn-primary" onclick="generateFromManual()">Continue</button>
+  </div>
+
+  <!-- COVENANT TAB -->
+  <div class="tab-panel" id="tab-covenant">
+    <div class="slabel-s">Armed Forces Covenant Signatories</div>
+    <div id="covenant-meta" style="font-size:0.68rem;color:rgba(255,255,255,0.4);margin-bottom:0.75rem;">Loading list…</div>
+    <div class="fg">
+      <label>Region</label>
+      <select id="covenant-region-filter" onchange="renderCovenantList()"><option value="">All regions</option></select>
+    </div>
+    <div class="fg">
+      <label>Industry</label>
+      <select id="covenant-industry-filter" onchange="renderCovenantList()"><option value="">All industries</option></select>
+    </div>
+    <div class="fg">
+      <label>Name contains</label>
+      <input type="text" id="covenant-name-filter" placeholder="Filter by name" oninput="renderCovenantList()" />
+    </div>
+    <div id="covenant-list" style="max-height:60vh;overflow-y:auto;"></div>
+    <div style="font-size:0.62rem;color:rgba(255,255,255,0.3);margin-top:0.75rem;line-height:1.5;">
+      Contains public sector information licensed under the Open Government Licence v3.0.
+      This is a browsing source, not a verified match to any specific Companies House
+      prospect — cross-referencing against a loaded prospect happens automatically in
+      the detail panel's Qualify step, with confirmation required for anything short of
+      an exact name match.
+    </div>
   </div>
 
   <!-- SAVED TAB -->
@@ -410,6 +436,7 @@ input, button, select, textarea { font-family: inherit; }
     <!-- ================== 2. QUALIFY ================== -->
     <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin:1.5rem 0 0.5rem;border-bottom:1px solid #C2A86444;padding-bottom:0.35rem;">2. Qualify</div>
     <div id="dp-qualify-signals" style="font-size:0.78rem;color:var(--muted);margin-bottom:0.6rem;"></div>
+    <div id="dp-covenant-match" style="display:none;margin-bottom:0.75rem;padding:0.5rem 0.7rem;border-radius:6px;font-size:0.75rem;line-height:1.5;"></div>
     <div class="dp-grid">
       <div class="dp-field">
         <label>Headcount</label>
@@ -1266,6 +1293,186 @@ function copyEmailVariant() {
 
 // Step 2 (Qualify) signals — plain-English "Accounts: X · Age: Yy old" line,
 // reusing the existing size-proxy helpers. No badges/chips here, just text.
+// --- Covenant cross-reference (Change Order 03, matching discipline) ---
+// The auto-sourced GOV.UK list (~14,738 names, no CH company number) is
+// machine-fetched, not human-curated like the CSV-import Covenant/ERS lists
+// (those keep their own tagging as-is, see importCsvList). Cross-referencing
+// a SIC-search-sourced prospect's name against this list is the tool making
+// its own inference, so it gets the strict discipline: exact normalised name
+// match auto-confirms; anything less requires the owner to confirm by hand
+// before the Covenant tag/variant becomes available for THIS prospect. No
+// match, no claim — nothing is shown.
+let _covenantList = null;
+let _covenantListPromise = null;
+let _covenantMeta = null; // { asOf, stale, count }
+
+function _loadCovenantList() {
+  if (_covenantListPromise) return _covenantListPromise;
+  _covenantListPromise = fetch(CH_PROXY + '/covenant')
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(d) {
+      _covenantList = (d && d.businesses) || [];
+      _covenantMeta = d ? { asOf: d.asOf, stale: d.stale, count: d.count } : null;
+      return _covenantList;
+    })
+    .catch(function() { _covenantList = []; _covenantMeta = null; return _covenantList; });
+  return _covenantListPromise;
+}
+
+// Prettifies GOV.UK's slug-style values, e.g. "east-anglia" -> "East Anglia".
+function _prettifySlug(s) {
+  return String(s || '').split('-').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
+}
+
+function initCovenantTab() {
+  var metaEl = document.getElementById('covenant-meta');
+  _loadCovenantList().then(function(list) {
+    if (metaEl) {
+      if (!list.length) {
+        metaEl.textContent = 'Could not load the Covenant list right now.';
+      } else {
+        var asOfDate = _covenantMeta && _covenantMeta.asOf ? new Date(_covenantMeta.asOf).toLocaleDateString('en-GB') : 'unknown date';
+        metaEl.textContent = list.length.toLocaleString('en-GB') + ' businesses · list as at ' + asOfDate +
+          (_covenantMeta && _covenantMeta.stale ? ' (cached copy — GOV.UK unreachable on last refresh)' : '');
+      }
+    }
+    var regionEl = document.getElementById('covenant-region-filter');
+    var industryEl = document.getElementById('covenant-industry-filter');
+    if (regionEl && regionEl.options.length <= 1) {
+      var regions = Array.from(new Set(list.map(function(b) { return b.region; }).filter(Boolean))).sort();
+      regions.forEach(function(r) {
+        var o = document.createElement('option'); o.value = r; o.textContent = _prettifySlug(r); regionEl.appendChild(o);
+      });
+    }
+    if (industryEl && industryEl.options.length <= 1) {
+      var industries = Array.from(new Set(list.map(function(b) { return b.industry; }).filter(Boolean))).sort();
+      industries.forEach(function(i) {
+        var o = document.createElement('option'); o.value = i; o.textContent = _prettifySlug(i); industryEl.appendChild(o);
+      });
+    }
+    renderCovenantList();
+  });
+}
+
+function renderCovenantList() {
+  var el = document.getElementById('covenant-list');
+  if (!el || !_covenantList) return;
+  var region = document.getElementById('covenant-region-filter').value;
+  var industry = document.getElementById('covenant-industry-filter').value;
+  var nameQ = document.getElementById('covenant-name-filter').value.trim().toLowerCase();
+
+  var filtered = _covenantList.filter(function(b) {
+    if (region && b.region !== region) return false;
+    if (industry && b.industry !== industry) return false;
+    if (nameQ && b.name.toLowerCase().indexOf(nameQ) === -1) return false;
+    return true;
+  });
+
+  var capped = filtered.slice(0, 200);
+  el.innerHTML = capped.map(function(b, idx) {
+    return '<div class="saved-item" style="cursor:default;">' +
+      '<div><div class="si-name">' + b.name.replace(/</g, '&lt;') + '</div>' +
+      '<div class="si-meta">' + _prettifySlug(b.region) + ' · ' + _prettifySlug(b.industry) + ' · ' + b.pledged.length + ' pledge' + (b.pledged.length === 1 ? '' : 's') + '</div></div>' +
+      '<button class="del-btn" style="color:var(--accent);font-size:1.1rem;" title="Add as prospect" onclick="addCovenantAsProspect(' + idx + ')">+</button>' +
+      '</div>';
+  }).join('') || '<div class="loading-msg">No matches.</div>';
+  if (filtered.length > capped.length) {
+    el.innerHTML += '<div class="loading-msg">Showing first 200 of ' + filtered.length.toLocaleString('en-GB') + ' matches — narrow the filters to see more precisely.</div>';
+  }
+  window._covenantFiltered = capped; // for addCovenantAsProspect's index lookup
+}
+
+// Directly selecting a business off the authoritative GOV.UK list IS the
+// confirmation — no "possible match" ambiguity here, unlike the automatic
+// cross-reference against SIC-search prospects. Adds straight to the local
+// pipeline as a manual-style entry (no CH company number/address yet).
+function addCovenantAsProspect(idx) {
+  var b = window._covenantFiltered && window._covenantFiltered[idx];
+  if (!b) return;
+  if (savedProspects.some(function(p) { return _normaliseCompanyName(p.name) === _normaliseCompanyName(b.name); })) {
+    alert(b.name + ' is already in the pipeline.');
+    return;
+  }
+  savedProspects.push({
+    name: b.name, address: '', sector: 'defence_marine', tag: 'Covenant', headcount: 0, siteArea: 0,
+    number: '', refNum: 'RSG-' + (Math.floor(Math.random() * 90000) + 10000),
+    importSource: 'Covenant (GOV.UK)', airtableCompanyId: '', airtableSiteId: '',
+    savedAt: new Date().toISOString()
+  });
+  localStorage.setItem('prospects_v2', JSON.stringify(savedProspects));
+  _updatePipelineStatusBar();
+  alert(b.name + ' added to the pipeline (Covenant confirmed via GOV.UK list).');
+}
+
+function _covenantMatchFor(name) {
+  if (!_covenantList || !_covenantList.length || !name) return { type: 'none', business: null };
+  var target = _normaliseCompanyName(name);
+  if (!target) return { type: 'none', business: null };
+  for (var i = 0; i < _covenantList.length; i++) {
+    if (_normaliseCompanyName(_covenantList[i].name) === target) return { type: 'exact', business: _covenantList[i] };
+  }
+  if (target.length >= 5) {
+    for (var j = 0; j < _covenantList.length; j++) {
+      var bn = _normaliseCompanyName(_covenantList[j].name);
+      if (bn.length >= 5 && (bn.indexOf(target) !== -1 || target.indexOf(bn) !== -1)) {
+        return { type: 'possible', business: _covenantList[j] };
+      }
+    }
+  }
+  return { type: 'none', business: null };
+}
+
+function _setCovenantDoorLocked(locked) {
+  var tagEl = document.getElementById('dp-tag');
+  if (!tagEl) return;
+  var covenantOption = Array.from(tagEl.options).find(function(o) { return o.value === 'Covenant'; });
+  if (covenantOption) covenantOption.disabled = !!locked;
+  // If Covenant is locked while selected (e.g. an unconfirmed list match on
+  // a defence_marine prospect, whose door defaults to Covenant), fall back
+  // to Owner until the match is confirmed or the sector default changes.
+  if (locked && tagEl.value === 'Covenant') tagEl.value = 'Owner';
+}
+
+function confirmCovenantMatch() {
+  if (!currentProspect) return;
+  currentProspect.covenantConfirmed = true;
+  renderCovenantMatch();
+}
+
+function renderCovenantMatch() {
+  const el = document.getElementById('dp-covenant-match');
+  if (!el) return;
+  if (!currentProspect || !currentProspect.name) { el.style.display = 'none'; _setCovenantDoorLocked(false); return; }
+
+  if (!_covenantList) {
+    el.style.display = 'none';
+    _setCovenantDoorLocked(false);
+    _loadCovenantList().then(function() { renderCovenantMatch(); });
+    return;
+  }
+
+  const match = _covenantMatchFor(currentProspect.name);
+  currentProspect.covenantMatchType = match.type;
+
+  if (match.type === 'exact' || (match.type === 'possible' && currentProspect.covenantConfirmed)) {
+    el.style.display = 'block';
+    el.style.background = 'rgba(26,122,74,0.12)';
+    el.style.color = '#1a7a4a';
+    el.textContent = '✓ Covenant signatory confirmed (GOV.UK list match: "' + match.business.name + '")';
+    _setCovenantDoorLocked(false);
+  } else if (match.type === 'possible') {
+    el.style.display = 'block';
+    el.style.background = 'rgba(212,155,0,0.12)';
+    el.style.color = '#8a6400';
+    el.innerHTML = 'Possible Covenant match: "' + match.business.name + '" — confirm before using the Covenant tag or email variant. ' +
+      '<button type="button" onclick="confirmCovenantMatch()" style="margin-left:0.4rem;background:#8a6400;color:#fff;border:none;border-radius:4px;padding:0.15rem 0.5rem;font-size:0.7rem;cursor:pointer;">Confirm match</button>';
+    _setCovenantDoorLocked(true);
+  } else {
+    el.style.display = 'none';
+    _setCovenantDoorLocked(false);
+  }
+}
+
 function renderQualifySignals() {
   const el = document.getElementById('dp-qualify-signals');
   if (!el) return;
@@ -1361,7 +1568,8 @@ function renderPressureCost() {
       'Actual absence, cost and improvement will be confirmed following a proper needs assessment. ' +
       'These figures use gross wage cost only and exclude recruitment, cover, presenteeism and lost-output costs, which published research shows are typically higher. ' +
       'Resurgam will issue a tailored assessment following an initial conversation.' +
-    '</div>';
+    '</div>' +
+    '<div style="margin-top:0.5rem;font-size:0.9em;opacity:0.8;">Contains public sector information licensed under the Open Government Licence v3.0.</div>';
   sourcesEl.innerHTML = sourcesEl.innerHTML.replace('{{sectorLabel}}', (SECTOR_DATA[sector] && SECTOR_DATA[sector].label) || 'this sector');
 }
 
@@ -1932,6 +2140,7 @@ function switchTab(t) {
   document.querySelector(`.tab[onclick="switchTab('${t}')"]`).classList.add('active');
   document.getElementById('tab-' + t).classList.add('active');
   if (t === 'saved') renderSaved();
+  if (t === 'covenant') initCovenantTab();
 }
 
 function fmt(n) { return '£' + Math.round(n).toLocaleString('en-GB'); }
@@ -3038,6 +3247,7 @@ async function selectProspect(company, cardEl, sectorKey) {
   renderPressureCost();
   renderPersonaChips();
   renderQualifySignals();
+  renderCovenantMatch();
 
   // Build badges
   const badgesEl = document.getElementById('dp-badges');
@@ -3094,6 +3304,7 @@ async function selectProspect(company, cardEl, sectorKey) {
         document.getElementById('dp-meta').textContent += ` | SIC: ${sics}`;
       }
       renderQualifySignals();
+  renderCovenantMatch();
     }
   } catch(e) {}
 
@@ -3762,6 +3973,7 @@ function pickLookupResult(idx) {
   _resetDetailLookupPanel();
   _resetDetailOfficersPanel();
   renderQualifySignals();
+  renderCovenantMatch();
   renderPersonaChips();
 
   // Async enrich via /company/{number} — canonical name, full-accounts badge, SIC codes, CH address.
@@ -3805,6 +4017,7 @@ function pickLookupResult(idx) {
         document.getElementById('dp-meta').textContent += ' | SIC: ' + sicsShort;
       }
       renderQualifySignals();
+  renderCovenantMatch();
     })
     .catch(function() { /* enrichment is best-effort */ });
 }
@@ -4148,13 +4361,10 @@ function generateFromManual() {
   // so Save Prospect is available without divergent code paths.
   const name = document.getElementById('m-company').value.trim();
   const address = document.getElementById('m-address').value.trim();
-  const siteArea = parseFloat(document.getElementById('m-sitearea').value);
-  if (!name || !address || !siteArea || siteArea < 100) {
+  if (!name || !address) {
     const missing = [];
     if (!name) missing.push('Company Name');
     if (!address) missing.push('Address');
-    if (!siteArea) missing.push('Site Area');
-    else if (siteArea < 100) missing.push('Site Area (minimum 100m²)');
     alert('Please provide: ' + missing.join(', ') + '.\n\nOther fields (Contact Name, Job Title, Email, Sector) are optional.');
     return;
   }
@@ -4173,7 +4383,6 @@ function generateFromManual() {
   currentProspect = {
     name: name,
     address: address,
-    siteArea: siteArea,
     number: '',
     type: '',
     status: 'manual'
@@ -4195,6 +4404,7 @@ function generateFromManual() {
   const dpSector = document.getElementById('dp-sector');
   if (dpSector) dpSector.value = sector;
   renderQualifySignals();
+  renderCovenantMatch();
   renderPersonaChips();
 
   // Badges row — keep parity with search-found cards (which show status + optional 'full accounts').
@@ -4282,6 +4492,7 @@ function loadSavedLocal(idx) {
   renderPressureCost();
   renderPersonaChips();
   renderQualifySignals();
+  renderCovenantMatch();
   const badgesEl = document.getElementById('dp-badges');
   if (badgesEl) badgesEl.innerHTML = '<span class="tag tag-active">saved</span>' + _doorTagChip(p.tag);
 }
@@ -4451,6 +4662,7 @@ function loadSavedFromCache(recordId) {
   renderPressureCost();
   renderPersonaChips();
   renderQualifySignals();
+  renderCovenantMatch();
 
   // Badges row — show stage as an informational pill (re-using the existing tag styling).
   const badgesEl = document.getElementById('dp-badges');
