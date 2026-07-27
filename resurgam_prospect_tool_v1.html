@@ -332,6 +332,21 @@ input, button, select, textarea { font-family: inherit; }
     <div class="slabel-s">Saved Prospects</div>
     <div id="saved-list"><div class="loading-msg">No saved prospects yet</div></div>
     <button class="btn btn-secondary" style="margin-top:1rem;" onclick="exportCSV()">Export as CSV</button>
+
+    <div class="slabel-s" style="margin-top:1.25rem;">Import External List</div>
+    <div class="fg">
+      <label>Source</label>
+      <select id="csv-import-source">
+        <option value="Covenant">Covenant (Armed Forces Covenant employers)</option>
+        <option value="ERS">ERS (Employer Recognition Scheme)</option>
+      </select>
+    </div>
+    <div class="fg">
+      <label>CSV file (needs a company name column)</label>
+      <input type="file" id="csv-import-file" accept=".csv,text/csv" />
+    </div>
+    <button class="btn btn-primary" onclick="importCsvList()">Import &amp; Dedupe</button>
+    <div id="csv-import-result" style="font-size:0.75rem;color:rgba(255,255,255,0.55);margin-top:0.5rem;"></div>
   </div>
 </aside>
 
@@ -5040,12 +5055,111 @@ function deleteSaved(i) {
 
 function exportCSV() {
   if (!savedProspects.length) { alert('No saved prospects.'); return; }
-  const h = ['Company','Address','Sector','Site Area m2','Reference','Saved'];
-  const rows = savedProspects.map(p => [p.name,p.address,p.sector,p.siteArea,p.refNum||'',p.savedAt||''].map(v=>`"${v}"`).join(','));
+  const h = ['Company','Address','Sector','Tag','Headcount','Source','Site Area m2','Reference','Saved'];
+  const rows = savedProspects.map(p => [p.name,p.address,p.sector,p.tag||'',p.headcount||'',p.importSource||'CH search',p.siteArea,p.refNum||'',p.savedAt||''].map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(','));
   const csv = [h.join(','),...rows].join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
   a.download = 'prospects.csv'; a.click();
+}
+
+// --- Step 8: CSV import-and-tag for external lists (Covenant, ERS) ---
+
+// Minimal RFC4180-ish CSV parser: handles quoted fields, escaped quotes ("")
+// and commas inside quotes. Good enough for simple spreadsheet exports.
+function _parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(field); field = '';
+        if (row.length > 1 || row[0] !== '') rows.push(row);
+        row = [];
+      } else field += c;
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function _normaliseCompanyName(name) {
+  return String(name || '').toLowerCase()
+    .replace(/\b(ltd|limited|llp|plc|inc|co)\b\.?/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+// Both Covenant and ERS (Employer Recognition Scheme) lists are Armed Forces
+// Covenant-affiliated employers — default door tag is Covenant, same as the
+// defence_marine sector, editable per firm like everything else.
+function importCsvList() {
+  const fileEl = document.getElementById('csv-import-file');
+  const source = document.getElementById('csv-import-source').value;
+  const resultEl = document.getElementById('csv-import-result');
+  const file = fileEl && fileEl.files && fileEl.files[0];
+  if (!file) { resultEl.textContent = 'Choose a CSV file first.'; return; }
+
+  const reader = new FileReader();
+  reader.onload = function() {
+    const rows = _parseCSV(String(reader.result || ''));
+    if (!rows.length) { resultEl.textContent = 'Empty or unreadable CSV.'; return; }
+
+    const header = rows[0].map(h => String(h || '').trim().toLowerCase());
+    const nameIdx = header.findIndex(h => ['company', 'company name', 'name', 'employer'].includes(h));
+    if (nameIdx === -1) {
+      resultEl.textContent = 'No company-name column found (expected a header like "Company" or "Company Name").';
+      return;
+    }
+    const addrIdx    = header.findIndex(h => h.includes('address'));
+    const contactIdx = header.findIndex(h => h.includes('contact') || h.includes('name of contact'));
+    const emailIdx    = header.findIndex(h => h.includes('email'));
+    const phoneIdx    = header.findIndex(h => h.includes('phone') || h.includes('tel'));
+
+    const existingKeys = new Set(savedProspects.map(p => _normaliseCompanyName(p.name)));
+    let added = 0, skipped = 0, blank = 0;
+
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const name = (r[nameIdx] || '').trim();
+      if (!name) { blank++; continue; }
+      const key = _normaliseCompanyName(name);
+      if (!key || existingKeys.has(key)) { skipped++; continue; }
+      existingKeys.add(key);
+      savedProspects.push({
+        name,
+        address:  addrIdx    >= 0 ? (r[addrIdx]    || '').trim() : '',
+        contact:  contactIdx >= 0 ? (r[contactIdx] || '').trim() : '',
+        email:    emailIdx   >= 0 ? (r[emailIdx]   || '').trim() : '',
+        phone:    phoneIdx   >= 0 ? (r[phoneIdx]   || '').trim() : '',
+        sector: 'defence_marine',
+        tag: 'Covenant',
+        headcount: 0,
+        siteArea: 0,
+        number: '',
+        refNum: 'RSG-' + (Math.floor(Math.random() * 90000) + 10000),
+        importSource: source,
+        airtableCompanyId: '', airtableSiteId: '',
+        savedAt: new Date().toISOString()
+      });
+      added++;
+    }
+    localStorage.setItem('prospects_v2', JSON.stringify(savedProspects));
+    _updatePipelineStatusBar();
+    if (!AT_BASE) renderSavedLocal();
+    resultEl.textContent = added + ' imported, ' + skipped + ' already in pipeline (deduped by company name), ' + blank + ' blank rows skipped.';
+    fileEl.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function copyName(name) {
