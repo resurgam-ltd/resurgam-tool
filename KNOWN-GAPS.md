@@ -44,3 +44,33 @@ something, or is it still fine to leave parked.
   companion scheme) — a reasonable inference given context, not something you
   confirmed explicitly. If that's wrong, the CSV-import defaults (Covenant
   door tag, defence_marine sector) for ERS-sourced rows need revisiting.
+
+- **Covenant list caching — KV usage confirmed within Cloudflare's free tier.**
+  Per Cloudflare's current published limits (100,000 KV reads/day, 1,000
+  writes/day, 1GB storage): a rebuild costs 10 upstream requests to GOV.UK's
+  Search API (14,738 records ÷ 1,500 per request, rounded up) plus 2 KV
+  writes (data + asOf); a cache-hit request costs 2 KV reads. The stored list
+  is ~2-3MB, well under both the 1GB total and the 25MB per-value limit. At
+  one rebuild per ~24h this uses a small fraction of the daily write/read
+  budget — would need roughly 500x today's traffic before free-tier limits
+  became a real constraint.
+
+- **Covenant match discipline — containment heuristic can flag unrelated
+  near-matches** (e.g. "Capita Plc" flagged as a possible match against
+  "...Grosvenor Capital Limited", because "capital" contains "capita" as a
+  substring). Confirmed safe by design — this only produces an extra
+  confirm-prompt the owner correctly rejects, never a wrong assertion. TODO,
+  parked, do not build now: tighten the "possible" match to word-boundary
+  token comparison instead of raw substring containment, to cut confirm
+  noise. Low priority — re-assess only if false "possible" prompts turn out
+  to be a real annoyance in practice, not on principle.
+
+---
+
+**FEATURE FREEZE in effect (Change Order 03 review, 2026-07-27):** resurgam-tool
+v1 is feature-complete. Only bugfixes and the three real email variant
+copy-ins (arriving from the planning channel with the business documents)
+land from here until at least one real prospecting session has produced
+evidence about what actually earns a build. Don't add to this list's items
+speculatively — new gaps get added when the first real session actually hits
+them, not before.

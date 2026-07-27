@@ -1404,6 +1404,12 @@ function addCovenantAsProspect(idx) {
   alert(b.name + ' added to the pipeline (Covenant confirmed via GOV.UK list).');
 }
 
+// TODO (parked, low priority, do not build now — see KNOWN-GAPS.md): the
+// "possible" branch below is raw substring containment, which can flag
+// unrelated names sharing a common root inside a longer word (e.g. "Capita"
+// inside "...Capital Limited"). Safe by design either way — it only ever
+// produces an extra confirm-prompt the owner rejects, never a wrong
+// assertion — but word-boundary token comparison would cut the noise.
 function _covenantMatchFor(name) {
   if (!_covenantList || !_covenantList.length || !name) return { type: 'none', business: null };
   var target = _normaliseCompanyName(name);
