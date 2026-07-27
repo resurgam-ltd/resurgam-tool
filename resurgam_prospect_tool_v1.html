@@ -92,8 +92,8 @@ input, button, select, textarea { font-family: inherit; }
 .tag-full { background: rgba(42,127,212,0.25); color: #7ab8f5; }
 .tag-medium { background: rgba(42,127,212,0.25); color: #7ab8f5; }
 .tag-small { background: rgba(150,150,150,0.22); color: rgba(255,255,255,0.55); }
-.tag-micro { background: rgba(150,150,150,0.15); color: rgba(255,255,255,0.4); }
-.tag-dormant { background: rgba(150,150,150,0.1); color: rgba(255,255,255,0.3); }
+.tag-micro { background: rgba(212,155,0,0.22); color: #e0b400; }
+.tag-dormant { background: rgba(192,57,43,0.28); color: #f08080; font-weight: 700; }
 .tag-door-owner { background: rgba(194,168,100,0.25); color: var(--accent); }
 .tag-door-people { background: rgba(26,122,74,0.3); color: #5dd49a; }
 .tag-door-covenant { background: rgba(90,110,150,0.3); color: #9ab4e0; }
@@ -451,6 +451,10 @@ input, button, select, textarea { font-family: inherit; }
       <button class="addr-btn addr-btn-officers" id="dp-officers-btn" onclick="toggleDetailOfficers()" style="display:none;">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0113 0"/></svg>
         Officers
+      </button>
+      <button class="addr-btn addr-btn-accounts" id="dp-accounts-btn" onclick="openAccountsFilingHistory()" style="display:none;" title="Opens Companies House filing history — check the latest accounts' average-employees note for headcount">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+        Accounts
       </button>
       <button class="addr-btn addr-btn-copy" id="dp-copy-addr-btn" onclick="copyAddress()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
@@ -1479,16 +1483,28 @@ function renderCovenantMatch() {
   }
 }
 
+// Fix Batch 01, item 3 (qualification loudness): dormant accounts is the
+// strongest signal in this data that a company isn't actively trading —
+// surface it loudly rather than as one word among several in a muted line.
+// Presentation only; this does not filter or exclude anything.
+function _isDormantAccounts(accountsType) {
+  return String(accountsType || '').toLowerCase().indexOf('dormant') !== -1;
+}
+
 function renderQualifySignals() {
   const el = document.getElementById('dp-qualify-signals');
   if (!el) return;
-  if (!currentProspect) { el.textContent = ''; return; }
+  if (!currentProspect) { el.innerHTML = ''; return; }
   const bits = [];
   const badge = _accountsTypeBadge(currentProspect.accountsType);
   if (badge) bits.push('Accounts: ' + badge.label.replace(/\s*accounts$/i, ''));
   const ageLbl = _companyAgeLabel(currentProspect.date_of_creation);
   if (ageLbl) bits.push('Age: ' + ageLbl);
-  el.textContent = bits.join(' · ');
+  let html = bits.join(' · ');
+  if (_isDormantAccounts(currentProspect.accountsType)) {
+    html = '<div style="background:rgba(192,57,43,0.15);color:#c0392b;font-weight:700;padding:0.35rem 0.6rem;border-radius:5px;margin-bottom:0.4rem;">&#9888; Dormant accounts: likely not trading</div>' + html;
+  }
+  el.innerHTML = html;
 }
 
 // Step 3 (Reach) LinkedIn persona chips — rebuilds #dp-persona-chips from
@@ -2241,8 +2257,8 @@ function _removeAgents(items) {
 const _officersCache = new Map(); // companyNumber -> /officers/{num} response
 
 function _cleanCompanyName(name) {
-  // Strip trailing " Limited", " Ltd", " Ltd.", " PLC", " plc" (case-insensitive)
-  return String(name || '').replace(/[\s,]+(limited|ltd\.?|plc|p\.l\.c\.)\s*$/i, '').trim();
+  // Strip trailing " Limited", " Ltd", " Ltd.", " PLC", " plc", " LLP" (case-insensitive)
+  return String(name || '').replace(/[\s,]+(limited|ltd\.?|plc|p\.l\.c\.|llp)\s*$/i, '').trim();
 }
 
 function _formatChRegisteredOffice(roObj) {
@@ -2385,9 +2401,33 @@ async function _findOfficerEmail(firstName, lastName, domain, companyNumber) {
 
 // Opens a plain Google search for the prospect's contact email — no scraping,
 // no lookup service. Replaces the old automated /email-find pattern-lookup path.
+// Bugfix (Fix Batch 01): the previous exact-match-quoted query against the
+// full legal name (with LIMITED/LTD/etc still attached) returns nothing for
+// most real companies — verified against KINGDOM PARTNERS CHAMBERS LIMITED,
+// a dormant non-trader, where the control was working as designed and the
+// target simply had no indexed web presence to find. Still worth fixing the
+// query shape for the general case: strip the company-type suffix, drop the
+// exact-match quotes (they're too strict for how companies' own sites phrase
+// contact info), and add the registered-office town for disambiguation. When
+// a domain is already known (dp-website populated), scope the search to that
+// domain instead of a generic name search — it's a stronger signal than the
+// name once you have it.
+function _extractDomain(url) {
+  var m = String(url || '').match(/^(?:https?:\/\/)?(?:www\.)?([^\/\s]+)/i);
+  return m ? m[1] : '';
+}
+
 function searchForEmail() {
   if (!currentProspect || !currentProspect.name) return;
-  var q = '"' + currentProspect.name + '" email contact';
+  var domain = _extractDomain((document.getElementById('dp-website') || {}).value);
+  var q;
+  if (domain) {
+    q = 'site:' + domain + ' contact email';
+  } else {
+    var cleanedName = _cleanCompanyName(currentProspect.name);
+    var town = currentProspect.registeredOfficeLocality || '';
+    q = [cleanedName, town, 'contact email'].filter(Boolean).join(' ');
+  }
   window.open('https://www.google.com/search?q=' + encodeURIComponent(q), '_blank', 'noopener');
 }
 
@@ -3221,7 +3261,8 @@ async function selectProspect(company, cardEl, sectorKey) {
     type: company.company_type,
     status: company.company_status,
     date_of_creation: company.date_of_creation || '',
-    registeredOffice: _formatChRegisteredOffice(company.registered_office_address)
+    registeredOffice: _formatChRegisteredOffice(company.registered_office_address),
+    registeredOfficeLocality: (company.registered_office_address && company.registered_office_address.locality) || ''
   };
 
   document.getElementById('welcome-screen').style.display = 'none';
@@ -3262,6 +3303,8 @@ async function selectProspect(company, cardEl, sectorKey) {
   // Officers button visible for search-found prospects with a CH number; reset panel state on each selection.
   const ofBtn = document.getElementById('dp-officers-btn');
   if (ofBtn) ofBtn.style.display = company.company_number ? '' : 'none';
+  const acBtn = document.getElementById('dp-accounts-btn');
+  if (acBtn) acBtn.style.display = company.company_number ? '' : 'none';
   _resetDetailOfficersPanel();
 
   // Search-found prospects already have a CH number, so the lookup button is irrelevant — hide it.
@@ -3296,6 +3339,16 @@ async function selectProspect(company, cardEl, sectorKey) {
         if (badge) {
           badgesEl.innerHTML += `<span class="tag ${badge.cls}">${badge.label}</span>`;
           currentProspect.fullAccounts = rawType.toLowerCase().includes('full') || rawType.toLowerCase().includes('group');
+        }
+        // Fix Batch 01, item 3: loud warning on the result card too, not just
+        // the Qualify strip. Only reachable for the card just selected/fetched
+        // (accounts type isn't known for unselected cards without a per-card
+        // fetch this tool doesn't do) — presentation only, no filtering.
+        if (_isDormantAccounts(rawType) && cardEl) {
+          const tagsEl = cardEl.querySelector('.pc-tags');
+          if (tagsEl && !tagsEl.querySelector('.tag-dormant-warning')) {
+            tagsEl.innerHTML += '<span class="tag tag-dormant tag-dormant-warning">&#9888; Dormant</span>';
+          }
         }
       }
       // Size proxy: company age
@@ -3354,6 +3407,17 @@ function openMaps() {
   const addr = document.getElementById('dp-address').value;
   if (!addr || addr.includes('Looking')) { alert('No address available yet.'); return; }
   window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr) + '&layer=satellite', '_blank');
+}
+
+// Fix Batch 01, item 4 (sanctioned freeze exception). Opens the company's
+// public Companies House filing history — supports reading the latest filed
+// accounts' average-employees note by hand into the Headcount field. Not
+// an API integration, not automated parsing (that's the parked AUTO-HEADCOUNT
+// spec) — just a deep link to CH's own public page.
+function openAccountsFilingHistory() {
+  const number = currentProspect && currentProspect.number;
+  if (!number) { alert('No Companies House number available for this prospect.'); return; }
+  window.open('https://find-and-update.company-information.service.gov.uk/company/' + encodeURIComponent(number) + '/filing-history', '_blank', 'noopener');
 }
 
 function openLinkedIn() {
@@ -3974,6 +4038,8 @@ function pickLookupResult(idx) {
   if (lookupBtn) lookupBtn.style.display = 'none';
   const officersBtn = document.getElementById('dp-officers-btn');
   if (officersBtn) officersBtn.style.display = '';
+  const accountsBtn2 = document.getElementById('dp-accounts-btn');
+  if (accountsBtn2) accountsBtn2.style.display = '';
 
   // Close + clear the lookup panel; reset any officers panel state.
   _resetDetailLookupPanel();
@@ -4308,6 +4374,7 @@ async function saveCurrentProspect() {
     phone:      keep(phoneEl   && phoneEl.value,   currentProspect.phone),
     website:    keep(websiteEl && websiteEl.value, currentProspect.website),
     registeredOffice: currentProspect && currentProspect.registeredOffice ? currentProspect.registeredOffice : '',
+    registeredOfficeLocality: (currentProspect && currentProspect.registeredOfficeLocality) || '',
     location: (currentProspect.location && typeof currentProspect.location.lat === 'number' && typeof currentProspect.location.lng === 'number') ? currentProspect.location : null,
     airtableCompanyId: currentProspect.airtableCompanyId || '',
     airtableSiteId:    currentProspect.airtableSiteId    || '',
@@ -4419,6 +4486,8 @@ function generateFromManual() {
   // Officers button is hidden for manual entries (no CH number to query). Panel reset for hygiene.
   const ofBtnM = document.getElementById('dp-officers-btn');
   if (ofBtnM) ofBtnM.style.display = 'none';
+  const acBtnM = document.getElementById('dp-accounts-btn');
+  if (acBtnM) acBtnM.style.display = 'none';
   _resetDetailOfficersPanel();
 
   // Lookup button IS shown for manual entries — gives the user a way to upgrade to a CH-backed prospect.
@@ -4473,7 +4542,8 @@ function loadSavedLocal(idx) {
   _resetPerProspectEmailState();
   currentProspect = {
     name: p.name, address: p.address, number: p.number || '', type: '', status: 'active',
-    registeredOffice: p.registeredOffice || '', phone: p.phone, contact: p.contact,
+    registeredOffice: p.registeredOffice || '', registeredOfficeLocality: p.registeredOfficeLocality || '',
+    phone: p.phone, contact: p.contact,
     jobTitle: p.jobTitle, email: p.email, website: p.website,
     tag: p.tag, headcount: p.headcount, siteArea: p.siteArea, location: p.location || null,
     accountsType: p.accountsType || ''
@@ -4681,6 +4751,8 @@ function loadSavedFromCache(recordId) {
   // Officers / Look-up button visibility matches the SEARCH-found path when a CH number is present.
   const ofBtn = document.getElementById('dp-officers-btn');
   if (ofBtn) ofBtn.style.display = p.number ? '' : 'none';
+  const acBtn2 = document.getElementById('dp-accounts-btn');
+  if (acBtn2) acBtn2.style.display = p.number ? '' : 'none';
   const lkBtn = document.getElementById('dp-lookup-btn');
   if (lkBtn) lkBtn.style.display = p.number ? 'none' : '';
 
