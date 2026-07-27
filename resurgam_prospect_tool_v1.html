@@ -383,7 +383,7 @@ input, button, select, textarea { font-family: inherit; }
       </div>
       <div class="dp-field">
         <label>Sector Type</label>
-        <select id="dp-sector" onchange="document.getElementById('dp-tag').value = SECTOR_DOOR_DEFAULT[this.value] || 'Owner'; renderEmailVariantPreview();">
+        <select id="dp-sector" onchange="document.getElementById('dp-tag').value = SECTOR_DOOR_DEFAULT[this.value] || 'Owner'; renderEmailVariantPreview(); renderPressureCost();">
           <option value="professional_services">Professional Services (Legal, Accountancy, Consultancy)</option>
           <option value="construction_trades">Construction &amp; Trades Contractors</option>
           <option value="defence_marine">Defence &amp; Marine Engineering Supply Chain</option>
@@ -452,7 +452,7 @@ input, button, select, textarea { font-family: inherit; }
       </div>
       <div class="dp-field">
         <label>Headcount (manual qualification)</label>
-        <input type="number" id="dp-headcount" placeholder="Your estimate — CH doesn't give employee counts" min="1" />
+        <input type="number" id="dp-headcount" placeholder="Your estimate — CH doesn't give employee counts" min="1" oninput="renderPressureCost()" />
       </div>
     </div>
     <div class="dp-row" style="display:grid;grid-template-columns:1fr;gap:0.5rem;margin-top:0.5rem;">
@@ -515,6 +515,15 @@ input, button, select, textarea { font-family: inherit; }
         <button type="button" class="dp-btn" style="width:auto;padding:0.2rem 0.6rem;margin:0;font-size:0.62rem;" onclick="copyEmailVariant()">Copy</button>
       </div>
       <div id="dp-email-variant-preview" style="font-size:0.8rem;line-height:1.55;white-space:pre-wrap;"></div>
+    </div>
+
+    <div id="pressure-cost-panel" style="background:var(--light);border:1px solid var(--border);border-radius:6px;padding:0.75rem 0.9rem;margin-bottom:0.75rem;">
+      <span style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);">Pressure Cost (indicative)</span>
+      <div id="pressure-cost-figures" style="display:flex;gap:1.5rem;margin:0.5rem 0 0.6rem;"></div>
+      <details>
+        <summary style="font-size:0.65rem;color:var(--muted);cursor:pointer;">Sources &amp; disclaimer</summary>
+        <div id="pressure-cost-sources" style="font-size:0.68rem;line-height:1.6;color:var(--muted);margin-top:0.4rem;"></div>
+      </details>
     </div>
 
     <div class="dp-actions">
@@ -1389,6 +1398,67 @@ function copyEmailVariant() {
   navigator.clipboard.writeText(text).then(function() {
     _showPipelineToast('Email variant copied (DRAFT placeholder)');
   }).catch(function() {});
+}
+
+// --- Step 9: Pressure Cost panel ---
+// Every figure here traces to a specific published number, not an invented
+// per-sector model. HSE does not publish stress/depression/anxiety
+// prevalence broken down finely enough for Resurgam's six sectors, so the
+// same Great-Britain-wide rate is used across all of them — stated
+// explicitly rather than implying a false sector-specific precision.
+const PRESSURE_COST_SOURCES = {
+  prevalencePer100k: 5360,   // HSE, Working days lost in GB 2024/25 — stress/depression/anxiety, GB-wide rate
+  daysPerCase: 22.9,         // HSE, Working days lost in GB 2024/25 — average days lost per stress/depression/anxiety case
+  weeklyEarnings: 766.60,    // ONS ASHE, median gross weekly earnings, full-time employees, April 2025 (provisional)
+  workingDaysPerWeek: 5
+};
+
+function calculatePressureCost(headcount, sector) {
+  const s = PRESSURE_COST_SOURCES;
+  const affectedStaff = headcount * (s.prevalencePer100k / 100000);
+  const daysLost = affectedStaff * s.daysPerCase;
+  const dailyWageCost = s.weeklyEarnings / s.workingDaysPerWeek;
+  const cost = daysLost * dailyWageCost;
+  return { affectedStaff, daysLost, cost };
+}
+
+function renderPressureCost() {
+  const figuresEl = document.getElementById('pressure-cost-figures');
+  const sourcesEl = document.getElementById('pressure-cost-sources');
+  if (!figuresEl || !sourcesEl) return;
+  const headcount = Number((document.getElementById('dp-headcount') || {}).value) || 0;
+  const sector = (document.getElementById('dp-sector') || {}).value || '';
+
+  if (!headcount) {
+    figuresEl.innerHTML = '<div style="font-size:0.78rem;color:var(--muted);">Enter a headcount estimate above to see indicative figures.</div>';
+    sourcesEl.innerHTML = '';
+    return;
+  }
+  const r = calculatePressureCost(headcount, sector);
+  figuresEl.innerHTML =
+    '<div><div style="font-size:1.3rem;font-weight:700;color:var(--dark);">' + r.daysLost.toFixed(0) + '</div>' +
+    '<div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);">indicative days lost / year</div></div>' +
+    '<div><div style="font-size:1.3rem;font-weight:700;color:var(--dark);">' + fmt(r.cost) + '</div>' +
+    '<div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);">indicative cost / year</div></div>';
+
+  const s = PRESSURE_COST_SOURCES;
+  sourcesEl.innerHTML =
+    '<div style="margin-bottom:0.5rem;">' +
+      '<strong>Sources:</strong><br>' +
+      '&bull; HSE, <a href="https://www.hse.gov.uk/statistics/dayslost.htm" target="_blank" rel="noopener">Working days lost in Great Britain</a> (2024/25) — ' +
+        s.prevalencePer100k.toLocaleString('en-GB') + ' cases of work-related stress, depression or anxiety per 100,000 workers; ' +
+        s.daysPerCase + ' average working days lost per case.<br>' +
+      '&bull; ONS, <a href="https://www.ons.gov.uk/employmentandlabourmarket/peopleinwork/earningsandworkinghours/bulletins/annualsurveyofhoursandearnings/2025" target="_blank" rel="noopener">Employee earnings in the UK: 2025</a> (ASHE, provisional) — median gross weekly earnings for full-time employees, &pound;' + s.weeklyEarnings.toFixed(2) + ', divided by a ' + s.workingDaysPerWeek + '-day week.' +
+    '</div>' +
+    '<div>' +
+      '<strong>Disclaimer:</strong> All figures are indicative and based on published Great Britain-wide HSE and ONS national averages, not sector- or firm-specific data ' +
+      '(HSE does not publish stress/depression/anxiety rates broken down to this level for {{sectorLabel}}). ' +
+      'They demonstrate a scale of exposure only and do not constitute a diagnosis, a guarantee of savings, or a fixed price. ' +
+      'Actual absence, cost and improvement will be confirmed following a proper needs assessment. ' +
+      'These figures use gross wage cost only and exclude recruitment, cover, presenteeism and lost-output costs, which published research shows are typically higher. ' +
+      'Resurgam will issue a tailored assessment following an initial conversation.' +
+    '</div>';
+  sourcesEl.innerHTML = sourcesEl.innerHTML.replace('{{sectorLabel}}', (SECTOR_DATA[sector] && SECTOR_DATA[sector].label) || 'this sector');
 }
 
 // Human-readable SIC descriptions for display
@@ -3167,6 +3237,7 @@ async function selectProspect(company, cardEl, sectorKey) {
   if (tagSel) tagSel.value = SECTOR_DOOR_DEFAULT[sectorKey] || 'Owner';
   currentProspect.tag = tagSel ? tagSel.value : 'Owner';
   renderEmailVariantPreview();
+  renderPressureCost();
   // Set Track default — Standard unless currentProspect carries activeSitesCount/track from upstream.
   _setTrackDefault();
 
@@ -4821,6 +4892,7 @@ function loadSavedLocal(idx) {
   const dpTag = document.getElementById('dp-tag');
   if (dpTag) dpTag.value = p.tag || SECTOR_DOOR_DEFAULT[p.sector] || 'Owner';
   renderEmailVariantPreview();
+  renderPressureCost();
   _setTrackDefault();
   const badgesEl = document.getElementById('dp-badges');
   if (badgesEl) badgesEl.innerHTML = '<span class="tag tag-active">saved</span>' + _doorTagChip(p.tag);
@@ -4992,6 +5064,7 @@ function loadSavedFromCache(recordId) {
   const dpHeadcount = document.getElementById('dp-headcount');
   if (dpHeadcount) dpHeadcount.value = headcountEff;
   renderEmailVariantPreview();
+  renderPressureCost();
 
   // Track default reads currentProspect.track (just set) so this picks up the saved value.
   _setTrackDefault();
