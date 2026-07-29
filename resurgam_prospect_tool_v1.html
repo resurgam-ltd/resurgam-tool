@@ -2261,6 +2261,21 @@ function _cleanCompanyName(name) {
   return String(name || '').replace(/[\s,]+(limited|ltd\.?|plc|p\.l\.c\.|llp)\s*$/i, '').trim();
 }
 
+// Bugfix (Fix Batch 01, found auditing searchForEmail's town lookup): CH's
+// two search endpoints return different shapes. /advanced-search/companies
+// (SIC search) gives registered_office_address.locality properly. The plain
+// /search/companies endpoint (name search) has no locality field at all —
+// the town is folded into address.address_line_2 as free text instead. The
+// canonical /company/{number} profile fetch always has the proper shape;
+// this best-effort guess is only used until that resolves.
+function _deriveLocality(company) {
+  if (!company) return '';
+  if (company.registered_office_address && company.registered_office_address.locality) return company.registered_office_address.locality;
+  if (company.address && company.address.locality) return company.address.locality;
+  if (company.address && company.address.address_line_2) return company.address.address_line_2;
+  return '';
+}
+
 function _formatChRegisteredOffice(roObj) {
   if (!roObj || typeof roObj !== 'object') return '';
   const parts = [
@@ -3262,7 +3277,7 @@ async function selectProspect(company, cardEl, sectorKey) {
     status: company.company_status,
     date_of_creation: company.date_of_creation || '',
     registeredOffice: _formatChRegisteredOffice(company.registered_office_address),
-    registeredOfficeLocality: (company.registered_office_address && company.registered_office_address.locality) || ''
+    registeredOfficeLocality: _deriveLocality(company)
   };
 
   document.getElementById('welcome-screen').style.display = 'none';
@@ -3330,6 +3345,7 @@ async function selectProspect(company, cardEl, sectorKey) {
         currentProspect.address = addr;
         document.getElementById('dp-address').value = addr;
         document.getElementById('dp-address').style.color = '';
+        if (ra.locality) currentProspect.registeredOfficeLocality = ra.locality;
       }
       // Account type badge (size proxy) — every type, not just full/group
       if (d.accounts && d.accounts.last_accounts) {
@@ -4061,6 +4077,7 @@ function pickLookupResult(idx) {
       const ra = d.registered_office_address;
       if (ra) {
         currentProspect.registeredOffice = _formatChRegisteredOffice(ra);
+        if (ra.locality) currentProspect.registeredOfficeLocality = ra.locality;
       }
       if (d.accounts && d.accounts.last_accounts) {
         const rawType = d.accounts.last_accounts.type || '';
