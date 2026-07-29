@@ -5,6 +5,27 @@ v1 or because the right fix depends on information not yet available. Re-assess
 after the first real prospecting session — does any of these actually cost
 something, or is it still fine to leave parked.
 
+## Top of post-freeze candidate list
+
+- **AUTO-HEADCOUNT** (spec recorded 2026-07-29, build later on evidence from a
+  real prospecting session — NOT built now, feature freeze is in effect).
+  New Worker route on `resurgam-ch-proxy` hitting the Companies House
+  Documents API, fetching the latest filed accounts' iXBRL document, parsing
+  the average-employees disclosure out of it, and populating both the
+  Headcount field and the Pressure Cost panel automatically — no manual step
+  between a search result and generated proposal figures. Expected payoff:
+  removes the last manual step in the qualify workflow. Prerequisite
+  research before building: confirm the Documents API's auth model (likely
+  the same CH_KEY Basic auth already used elsewhere), iXBRL's actual
+  disclosure tag for average employees (not all filers use the same
+  taxonomy — small-company filers under FRS 105 may omit it entirely,
+  dormant/micro-entity accounts often don't file it at all), and a fail-soft
+  path for the (common) case where the disclosure isn't present, mirroring
+  the Covenant list's cache-and-fail-soft pattern rather than erroring per
+  prospect.
+
+## Other parked items
+
 - ~~Places lookup / Find Trading Address / static maps return errors.~~
   **RESOLVED by removal (Change Order 03).** The whole Locate/Measure
   workflow (Search Company via Google Places, Find Trading Address, Google
