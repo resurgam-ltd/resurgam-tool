@@ -440,7 +440,14 @@ input, button, select, textarea { font-family: inherit; }
     <div class="dp-grid">
       <div class="dp-field">
         <label>Headcount</label>
-        <input type="number" id="dp-headcount" placeholder="Your estimate (LinkedIn or accounts notes)" min="1" oninput="renderPressureCost()" />
+        <input type="number" id="dp-headcount" placeholder="Looking up filed accounts..." min="1" oninput="onHeadcountOvertype()" />
+        <div id="dp-headcount-provenance" style="font-size:0.68rem;color:var(--muted);margin-top:0.25rem;"></div>
+        <div id="dp-headcount-quickpick" style="display:none;margin-top:0.4rem;gap:0.35rem;flex-wrap:wrap;">
+          <button type="button" class="dp-li-btn" onclick="applyHeadcountQuickPick(5, this)">1-9</button>
+          <button type="button" class="dp-li-btn" onclick="applyHeadcountQuickPick(30, this)">10-49</button>
+          <button type="button" class="dp-li-btn" onclick="applyHeadcountQuickPick(150, this)">50-249</button>
+          <button type="button" class="dp-li-btn" onclick="applyHeadcountQuickPick(400, this)">250+</button>
+        </div>
       </div>
     </div>
 
@@ -630,6 +637,17 @@ function _resetAllPerProspectFields() {
   if (pcFigures) pcFigures.innerHTML = '';
   var pcSources = document.getElementById('pressure-cost-sources');
   if (pcSources) pcSources.innerHTML = '';
+  // AUTO-HEADCOUNT provenance/quick-pick state (Post-freeze build 01) —
+  // must not carry over: without this, a prospect with no CH number would
+  // keep showing the PREVIOUS prospect's "N employees, FYxxxx accounts" line.
+  var hcProvEl = document.getElementById('dp-headcount-provenance');
+  if (hcProvEl) hcProvEl.textContent = '';
+  var hcQuickEl = document.getElementById('dp-headcount-quickpick');
+  if (hcQuickEl) { hcQuickEl.style.display = 'none'; Array.from(hcQuickEl.children).forEach(function(b) { b.style.opacity = '1'; }); }
+  if (typeof currentProspect !== 'undefined' && currentProspect) {
+    delete currentProspect.headcountSource;
+    delete currentProspect.headcountPeriod;
+  }
   _resetPerProspectEmailState();
 }
 
@@ -1512,6 +1530,71 @@ function renderCovenantMatch() {
 // Presentation only; this does not filter or exclude anything.
 function _isDormantAccounts(accountsType) {
   return String(accountsType || '').toLowerCase().indexOf('dormant') !== -1;
+}
+
+// --- AUTO-HEADCOUNT (Post-freeze build 01) ---
+// Fetched on prospect SELECTION only, never during list render (rate
+// discipline) — the Worker's KV cache means repeat selections of the same
+// company cost nothing further either way.
+function _headcountProvenanceText(period) {
+  var year = period ? String(period).slice(0, 4) : '';
+  return year ? ('FY' + year + ' accounts (Companies House)') : 'Companies House accounts';
+}
+
+async function fetchAutoHeadcount() {
+  var hcEl = document.getElementById('dp-headcount');
+  var provEl = document.getElementById('dp-headcount-provenance');
+  var quickEl = document.getElementById('dp-headcount-quickpick');
+  if (!hcEl || !currentProspect || !currentProspect.number) {
+    if (hcEl) hcEl.placeholder = 'Your estimate (LinkedIn or accounts notes)';
+    return;
+  }
+  hcEl.placeholder = 'Looking up filed accounts...';
+  try {
+    var resp = await fetch(CH_PROXY + '/headcount/' + encodeURIComponent(currentProspect.number));
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var d = await resp.json();
+    // Owner may have already typed something while this was in flight, or
+    // moved on to a different prospect entirely — never clobber either case.
+    if (!currentProspect || currentProspect.headcountSource === 'manual') return;
+    hcEl.placeholder = 'Your estimate (LinkedIn or accounts notes)';
+    if (d.employees != null) {
+      hcEl.value = d.employees;
+      currentProspect.headcountSource = 'auto';
+      currentProspect.headcountPeriod = d.period;
+      if (provEl) provEl.textContent = d.employees + ' employees, ' + _headcountProvenanceText(d.period);
+      if (quickEl) quickEl.style.display = 'none';
+    } else {
+      if (provEl) provEl.textContent = 'No employee count in the filed accounts (' + (d.reason || 'unknown') + ') — pick a range or type your own estimate.';
+      if (quickEl) quickEl.style.display = 'flex';
+    }
+    renderPressureCost();
+  } catch (e) {
+    if (hcEl) hcEl.placeholder = 'Your estimate (LinkedIn or accounts notes)';
+    if (provEl) provEl.textContent = '';
+    if (quickEl && currentProspect) quickEl.style.display = 'flex';
+  }
+}
+
+// Owner overtype always wins: once they've typed into Headcount by hand,
+// auto-fill and quick-pick both back off and the typed figure is what saves.
+function onHeadcountOvertype() {
+  if (currentProspect) currentProspect.headcountSource = 'manual';
+  var provEl = document.getElementById('dp-headcount-provenance');
+  if (provEl) provEl.textContent = 'Entered manually';
+  var quickEl = document.getElementById('dp-headcount-quickpick');
+  if (quickEl) quickEl.style.display = 'none';
+  renderPressureCost();
+}
+
+function applyHeadcountQuickPick(midpoint, btnEl) {
+  var hcEl = document.getElementById('dp-headcount');
+  var provEl = document.getElementById('dp-headcount-provenance');
+  if (hcEl) hcEl.value = midpoint;
+  if (currentProspect) currentProspect.headcountSource = 'estimate';
+  if (provEl) provEl.textContent = 'Estimate (' + btnEl.textContent + ' range, midpoint) — not from filed accounts';
+  Array.from(btnEl.parentNode.children).forEach(function(b) { b.style.opacity = (b === btnEl) ? '1' : '0.5'; });
+  renderPressureCost();
 }
 
 function renderQualifySignals() {
@@ -3336,6 +3419,7 @@ async function selectProspect(company, cardEl, sectorKey) {
   renderPersonaChips();
   renderQualifySignals();
   renderCovenantMatch();
+  fetchAutoHeadcount();
 
   // Build badges
   const badgesEl = document.getElementById('dp-badges');
@@ -4089,6 +4173,7 @@ function pickLookupResult(idx) {
   renderQualifySignals();
   renderCovenantMatch();
   renderPersonaChips();
+  fetchAutoHeadcount(); // first moment a real CH number exists for this (was manual) prospect
 
   // Async enrich via /company/{number} — canonical name, full-accounts badge, SIC codes, CH address.
   fetch(CH_PROXY + '/company/' + encodeURIComponent(item.company_number))
