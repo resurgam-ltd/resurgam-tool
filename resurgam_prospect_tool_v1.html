@@ -610,6 +610,29 @@ function _resetPerProspectEmailState() {
   domainInputs.forEach(function(el) { el.value = ''; });
 }
 
+// Fix Batch 02, item 1: every per-prospect field reinitialises on every
+// GENUINE prospect switch — nothing carries from whichever prospect was
+// previously loaded (headcount, contact, job title, phone, tag, Pressure
+// Cost display, Covenant match state). Call this once, before setting
+// currentProspect to the new record, in every prospect-loading entry point.
+// Deliberately NOT called when re-selecting the SAME prospect (callers check
+// that first) — that would wipe out data the owner just typed for it.
+function _resetAllPerProspectFields() {
+  ['dp-headcount', 'dp-phone', 'dp-website', 'dp-contact', 'dp-job-title', 'dp-email'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var tagEl = document.getElementById('dp-tag');
+  if (tagEl) tagEl.value = 'Owner'; // overwritten to the new sector's real default right after, by each caller
+  var covenantEl = document.getElementById('dp-covenant-match');
+  if (covenantEl) { covenantEl.style.display = 'none'; covenantEl.innerHTML = ''; }
+  var pcFigures = document.getElementById('pressure-cost-figures');
+  if (pcFigures) pcFigures.innerHTML = '';
+  var pcSources = document.getElementById('pressure-cost-sources');
+  if (pcSources) pcSources.innerHTML = '';
+  _resetPerProspectEmailState();
+}
+
 // ============================================================
 // Multi-user pipeline cache: polls Airtable Companies every 30s,
 // drives the IN PIPELINE badge on search cards + the SAVED tab.
@@ -3260,12 +3283,15 @@ async function selectProspect(company, cardEl, sectorKey) {
   document.querySelectorAll('.prospect-card').forEach(c => c.classList.remove('selected'));
   cardEl.classList.add('selected');
 
-  // Reset per-prospect email state if this is a different prospect from the one
-  // currently loaded. Prevents the published-email block + EMAIL DOMAIN + dp-website
-  // from carrying the previous prospect's values when Places returns no match for the new one.
+  // Fix Batch 02, item 1: full per-prospect field reset if this is a
+  // different prospect from the one currently loaded — headcount, contact,
+  // job title, phone, website, email, tag, Pressure Cost and Covenant match
+  // state all clear rather than carrying over from whatever was previously
+  // displayed. Skipped only when re-selecting the exact same prospect (same
+  // company number), so re-clicking a card doesn't wipe what was just typed.
   const _newNumber = company.company_number || '';
   const _oldNumber = (currentProspect && currentProspect.number) || '';
-  if (_newNumber !== _oldNumber) _resetPerProspectEmailState();
+  if (_newNumber !== _oldNumber) _resetAllPerProspectFields();
 
   const resolvedName = company.title || company.company_name || company.name || '';
 
@@ -4463,10 +4489,11 @@ function generateFromManual() {
   const email = document.getElementById('m-email').value.trim();
   const sector = document.getElementById('m-sector').value;
 
-  // Manual entries always replace currentProspect with fresh data — reset per-prospect
-  // email state so the published-email block and EMAIL DOMAIN don't carry the previous
-  // prospect's values.
-  _resetPerProspectEmailState();
+  // Fix Batch 02, item 1: manual entries always replace currentProspect with
+  // fresh data — full per-prospect reset (was email-state only, which missed
+  // headcount/phone/website/tag carrying over from whatever was previously
+  // displayed).
+  _resetAllPerProspectFields();
 
   // Seed currentProspect so saveCurrentProspect() has identity.
   // Empty number/type signals a manual entry; status:'manual' is informational.
@@ -4493,9 +4520,13 @@ function generateFromManual() {
   document.getElementById('dp-email').value = email;
   const dpSector = document.getElementById('dp-sector');
   if (dpSector) dpSector.value = sector;
+  const dpTagM = document.getElementById('dp-tag');
+  if (dpTagM) dpTagM.value = SECTOR_DOOR_DEFAULT[sector] || 'Owner';
   renderQualifySignals();
   renderCovenantMatch();
   renderPersonaChips();
+  renderEmailVariantPreview();
+  renderPressureCost();
 
   // Badges row — keep parity with search-found cards (which show status + optional 'full accounts').
   document.getElementById('dp-badges').innerHTML = '<span class="tag tag-active">manual entry</span>';
