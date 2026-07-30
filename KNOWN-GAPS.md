@@ -47,12 +47,26 @@ something, or is it still fine to leave parked.
 
   Found and fixed in passing: Companies House's advanced-search endpoint
   returns HTTP 404 (not 200 + empty items) when a name query genuinely
-  matches nothing. `/ch-advanced` now treats 404 as zero results. **The
-  same bug exists in `nova-proxy`'s identical `/ch-advanced` route** (this
-  route was originally cloned from there) — per this repo's shared-core
-  discipline that's normally a same-task fix in both, but nova-proxy is
-  Nova's live production estate, so that fix needs your go-ahead before it
-  lands there; flagging rather than pushing it silently.
+  matches nothing. `/ch-advanced` now treats 404 as zero results.
+
+  **CLOSED 2026-07-30 — nova-proxy fix shipped too, on your live-estate
+  authorisation.** Same bug, same route (originally cloned from there),
+  ported identically per shared-core discipline: `main` @ `ff18294`,
+  deployed live (Cloudflare Version `d42351c3`). Verified post-deploy with
+  8x repeated known-zero-match requests and 4x repeated known-good
+  requests, all consistent. One false-alarm rollback along the way — the
+  very first single-request check fired too soon after deploy and hit a
+  Cloudflare edge node still serving the old version; rolled back per the
+  stated condition, diagnosed as edge-propagation lag (not a real
+  regression) by re-querying the rolled-back version and seeing it settle
+  to consistently-old behaviour, then redeployed and re-verified properly
+  with repeated, spaced-out requests. Full account in nova-proxy's
+  STATE.md, 30 July 2026 entry. In passing: nova-proxy's `main` branch
+  CLAUDE.md is still on an older "relay model" rulebook that predates the
+  gates-based operating model this whole engagement runs on elsewhere —
+  a real branch (`deploy/reconcile-observability`) already has the
+  update but it was never merged back to `main`. Not fixed, just noted —
+  repo governance file, not something to touch without being asked.
 
 ## Other parked items
 
