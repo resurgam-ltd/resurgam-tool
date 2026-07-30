@@ -1419,54 +1419,27 @@ function renderCovenantList() {
 
   var capped = filtered.slice(0, 200);
   el.innerHTML = capped.map(function(b, idx) {
-    return '<div class="saved-item" style="cursor:default;flex-wrap:wrap;">' +
+    return '<div class="saved-item" style="cursor:pointer;flex-wrap:wrap;" onclick="resolveCovenantEntry(' + idx + ')" title="Open this Covenant entry">' +
       '<div><div class="si-name">' + b.name.replace(/</g, '&lt;') + '</div>' +
       '<div class="si-meta">' + _prettifySlug(b.region) + ' · ' + _prettifySlug(b.industry) + ' · ' + b.pledged.length + ' pledge' + (b.pledged.length === 1 ? '' : 's') + '</div></div>' +
-      '<div style="display:flex;align-items:center;gap:0.6rem;">' +
-      '<button class="dp-li-btn" title="Search Companies House for this business, confirm the match yourself" onclick="findCovenantAtCompaniesHouse(' + idx + ')">Find at Companies House</button>' +
-      '<a href="#" style="font-size:0.7rem;color:var(--muted);white-space:nowrap;" title="Skip the Companies House lookup; add with manual enrichment" onclick="addCovenantAsProspect(' + idx + ');return false;">Add without lookup</a>' +
-      '</div>' +
       '</div>';
   }).join('') || '<div class="loading-msg">No matches.</div>';
   if (filtered.length > capped.length) {
     el.innerHTML += '<div class="loading-msg">Showing first 200 of ' + filtered.length.toLocaleString('en-GB') + ' matches — narrow the filters to see more precisely.</div>';
   }
-  window._covenantFiltered = capped; // for addCovenantAsProspect's index lookup
+  window._covenantFiltered = capped; // for resolveCovenantEntry's index lookup
 }
 
-// Directly selecting a business off the authoritative GOV.UK list IS the
-// confirmation — no "possible match" ambiguity here, unlike the automatic
-// cross-reference against SIC-search prospects. Adds straight to the local
-// pipeline as a manual-style entry (no CH company number/address yet).
-function addCovenantAsProspect(idx) {
-  var b = window._covenantFiltered && window._covenantFiltered[idx];
-  if (!b) return;
-  if (savedProspects.some(function(p) { return _normaliseCompanyName(p.name) === _normaliseCompanyName(b.name); })) {
-    alert(b.name + ' is already in the pipeline.');
-    return;
-  }
-  savedProspects.push({
-    name: b.name, address: '', sector: 'defence_marine', tag: 'Covenant', headcount: 0, siteArea: 0,
-    number: '', refNum: 'RSG-' + (Math.floor(Math.random() * 90000) + 10000),
-    importSource: 'Covenant (GOV.UK)', airtableCompanyId: '', airtableSiteId: '',
-    covenantRegion: b.region || '', covenantIndustry: b.industry || '', covenantPledgeCount: (b.pledged && b.pledged.length) || 0,
-    savedAt: new Date().toISOString()
-  });
-  localStorage.setItem('prospects_v2', JSON.stringify(savedProspects));
-  _updatePipelineStatusBar();
-  alert(b.name + ' added to the pipeline (Covenant confirmed via GOV.UK list).');
-}
-
-// Post-freeze build 02: Covenant entries get the full prospect treatment.
-// "Find at Companies House" seeds the shared detail panel exactly as a
-// Manual-tab entry does (name only, no CH data yet), then opens + auto-runs
-// the same CH lookup panel Manual entries use to "upgrade" to a CH-backed
-// record — seeded with the signatory name, suffixes cleaned. The owner's
-// candidate pick (in pickLookupResult) is the confirmation step; see
-// _applyCovenantConfirmation, which fires only when window._covenantBridgeSource
-// is set (cleared after one pick, so it never leaks into an unrelated Search
-// or Manual pick made later in the same session).
-function findCovenantAtCompaniesHouse(idx) {
+// Post-freeze build 03: Covenant entries open in one click. Clicking the row
+// resolves it in the background — no separate "find" step, no picker for the
+// common case. Seeds the shared detail panel exactly as a Manual-tab entry
+// does (name only, no CH data yet), then decides one of three outcomes once
+// the background search returns: a single confident match opens straight to
+// the full panel (item 2), several plausible ones fall back to the existing
+// candidate picker with a one-line reason (item 3), and no company record at
+// all still opens the panel — Covenant-tagged, blank for manual entry, never
+// a dead end (item 4).
+async function resolveCovenantEntry(idx) {
   var b = window._covenantFiltered && window._covenantFiltered[idx];
   if (!b) return;
 
@@ -1498,7 +1471,7 @@ function findCovenantAtCompaniesHouse(idx) {
   renderEmailVariantPreview();
   renderPressureCost();
 
-  document.getElementById('dp-badges').innerHTML = '<span class="tag tag-active">Covenant — finding Companies House match…</span>';
+  document.getElementById('dp-badges').innerHTML = '<span class="tag tag-active">Covenant — resolving Companies House match…</span>';
 
   var ofBtn = document.getElementById('dp-officers-btn');
   if (ofBtn) ofBtn.style.display = 'none';
@@ -1514,13 +1487,97 @@ function findCovenantAtCompaniesHouse(idx) {
   var main = document.getElementById('main-area');
   if (main && main.scrollTo) main.scrollTo(0, 0);
 
-  // Open the lookup panel pre-seeded with the cleaned name and auto-fire —
-  // same "type a name, look it up" flow Manual entries use, just driven
-  // programmatically instead of typed by hand.
-  toggleDetailLookup();
-  var lookupInput = document.getElementById('dp-lookup-input');
-  if (lookupInput) lookupInput.value = _cleanCompanyName(b.name);
-  runDetailLookup();
+  var cleaned = _cleanCompanyName(b.name);
+  var candidates = await _fetchCovenantCandidatesBiased(cleaned, b.region);
+
+  // Stale-guard: the owner may have clicked a different row (or left the tab)
+  // while this fetch was in flight. Only act on the result if it still
+  // belongs to the prospect on screen.
+  if (window._covenantBridgeSource !== b || !currentProspect || currentProspect.name !== b.name) return;
+
+  var confident = _confidentCovenantMatches(candidates, b.name);
+
+  if (confident.length === 1) {
+    _lookupResults = candidates;
+    pickLookupResult(candidates.indexOf(confident[0]));
+  } else if (!candidates.length) {
+    _openCovenantManualFallback();
+  } else {
+    _openCovenantPicker(candidates, confident.length > 1
+      ? 'More than one exact name match — pick the right one.'
+      : 'More than one match — pick the right one.');
+  }
+}
+
+// Item 2's confidence test: an active company whose normalised name equals
+// the register entry's normalised name. Deliberately stricter than "first
+// result" — CH's name search returns textually-similar-but-different
+// companies (trading variants, subsidiaries) that this filters back out.
+function _confidentCovenantMatches(candidates, rawName) {
+  var target = _normaliseCompanyName(rawName);
+  return candidates.filter(function(c) {
+    return (c.company_status || '').toLowerCase() === 'active' && _normaliseCompanyName(c.title) === target;
+  });
+}
+
+// Item 3: ambiguous — the same candidate-picker UI a Manual-tab CH lookup
+// uses, pre-seeded with the candidates already fetched (no re-fetch) plus a
+// one-line reason for why the owner is seeing a list instead of a resolved
+// record.
+function _openCovenantPicker(candidates, reasonText) {
+  _lookupResults = candidates;
+  var panel = document.getElementById('dp-lookup-panel');
+  if (!panel) return;
+  panel.innerHTML = '';
+
+  var reason = document.createElement('div');
+  reason.className = 'dp-lookup-hint';
+  reason.textContent = reasonText;
+  panel.appendChild(reason);
+
+  var searchRow = document.createElement('div');
+  searchRow.className = 'dp-lookup-search-row';
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.id = 'dp-lookup-input';
+  input.className = 'dp-lookup-input';
+  input.placeholder = 'Company name to search';
+  input.value = (currentProspect && currentProspect.name) || '';
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); runDetailLookup(); }
+  });
+  searchRow.appendChild(input);
+  var goBtn = document.createElement('button');
+  goBtn.type = 'button';
+  goBtn.className = 'dp-lookup-go';
+  goBtn.textContent = 'Search';
+  goBtn.addEventListener('click', runDetailLookup);
+  searchRow.appendChild(goBtn);
+  panel.appendChild(searchRow);
+
+  var resultsEl = document.createElement('div');
+  resultsEl.id = 'dp-lookup-results';
+  panel.appendChild(resultsEl);
+
+  panel.classList.add('open');
+  _renderLookupRows(candidates, resultsEl);
+}
+
+// Item 4: no company record at all (genuinely nothing back from Companies
+// House — includes non-company signatories: police forces, councils,
+// building societies). Never an error, never a dead end — the panel already
+// on screen just stays a manual entry, Covenant-tagged, register metadata
+// attached, everything else left blank for the owner to fill in.
+function _openCovenantManualFallback() {
+  var b = window._covenantBridgeSource;
+  window._covenantBridgeSource = null; // one-shot: resolved (to nothing), don't leak to a later pick
+  if (currentProspect && b) {
+    currentProspect.covenantRegion = b.region || '';
+    currentProspect.covenantIndustry = b.industry || '';
+    currentProspect.covenantPledgeCount = (b.pledged && b.pledged.length) || 0;
+  }
+  document.getElementById('dp-badges').innerHTML = '<span class="tag tag-active">manual entry</span><span class="tag tag-target">Covenant — no Companies House match, enter details manually</span>';
+  _resetDetailLookupPanel();
 }
 
 // Fires once, immediately after the owner picks a CH candidate that
@@ -4112,6 +4169,123 @@ function toggleDetailLookup() {
   }
 }
 
+// Shared row renderer for the CH candidate list — used by the Manual/Search
+// lookup panel (runDetailLookup) and the Covenant one-click resolver's
+// ambiguous-match picker (_openCovenantPicker), so both stay pixel-identical
+// without duplicating the DOM-building logic.
+function _renderLookupRows(items, resultsEl) {
+  items.forEach(function(item, idx) {
+    const name = item.title || item.company_name || item.name || '';
+    const num = item.company_number || '';
+    const status = item.company_status || '';
+    const type = item.company_type || '';
+    const date = item.date_of_creation || '';
+    const addr = item.address_snippet || ((item.address && [item.address.address_line_1, item.address.locality, item.address.postal_code].filter(Boolean).join(', ')) || '');
+    const metaParts = [];
+    if (num) metaParts.push('No. ' + num);
+    if (type) metaParts.push(type);
+    if (date) {
+      // Show just the year from date_of_creation, e.g. "1965-09-13" → "Inc. 1965"
+      const year = String(date).slice(0, 4);
+      if (/^\d{4}$/.test(year)) metaParts.push('Inc. ' + year);
+      else metaParts.push('Inc. ' + date);
+    }
+
+    const row = document.createElement('div');
+    row.className = 'dp-lookup-row';
+    const info = document.createElement('div');
+    info.className = 'dp-lookup-row-info';
+    const nm = document.createElement('div');
+    nm.className = 'dp-lookup-row-name';
+    nm.textContent = name;
+    const meta = document.createElement('div');
+    meta.className = 'dp-lookup-row-meta';
+    meta.textContent = metaParts.join(' · ');
+    // Add status badge if status is known
+    if (status) {
+      const badge = document.createElement('span');
+      badge.className = 'dp-lookup-row-status';
+      badge.textContent = status;
+      // Status-driven colour: active green, dissolved/liquidation red, others amber
+      const s = String(status).toLowerCase();
+      if (s === 'active') {
+        badge.style.cssText = 'display:inline-block;margin-left:0.5rem;padding:0.1rem 0.45rem;background:#2a9d4a;color:white;border-radius:3px;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;';
+      } else if (s.includes('dissolved') || s.includes('liquidation') || s.includes('receiver')) {
+        badge.style.cssText = 'display:inline-block;margin-left:0.5rem;padding:0.1rem 0.45rem;background:#c44;color:white;border-radius:3px;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;';
+      } else {
+        badge.style.cssText = 'display:inline-block;margin-left:0.5rem;padding:0.1rem 0.45rem;background:#d49b00;color:white;border-radius:3px;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;';
+      }
+      meta.appendChild(badge);
+    }
+    const addrEl = document.createElement('div');
+    addrEl.className = 'dp-lookup-row-addr';
+    addrEl.textContent = addr;
+    info.appendChild(nm);
+    info.appendChild(meta);
+    if (addr) info.appendChild(addrEl);
+    // SIC codes — present only for candidates from the advanced-search
+    // endpoint (Covenant bridge); the plain name-search branch never has these.
+    if (item.sic_codes && item.sic_codes.length) {
+      const sicEl = document.createElement('div');
+      sicEl.className = 'dp-lookup-row-addr';
+      sicEl.textContent = 'SIC ' + item.sic_codes.slice(0, 3).join(', ');
+      info.appendChild(sicEl);
+    }
+    const pickBtn = document.createElement('button');
+    pickBtn.type = 'button';
+    pickBtn.className = 'dp-lookup-pick';
+    pickBtn.textContent = 'Pick';
+    pickBtn.addEventListener('click', function() { pickLookupResult(idx); });
+    row.appendChild(info);
+    row.appendChild(pickBtn);
+    resultsEl.appendChild(row);
+  });
+}
+
+// Companies House advanced-search in name mode, normalised to the shape the
+// lookup panel and pickLookupResult already consume. Never throws — callers
+// that need to distinguish a genuine upstream failure from zero results
+// should check resp.ok themselves; this is the shared shaping step only.
+async function _fetchChAdvancedByName(name, location) {
+  const params = new URLSearchParams();
+  params.append('name', name);
+  params.append('size', '10');
+  if (location) params.append('location', location);
+  const resp = await fetch(CH_PROXY + '/ch-advanced?' + params.toString());
+  if (!resp.ok) { const e = new Error('HTTP ' + resp.status); e.status = resp.status; throw e; }
+  const data = await resp.json();
+  return (data.companies || []).slice(0, 10).map(function(c) {
+    return {
+      title: c.name || '', company_number: c.company_number || '',
+      company_status: c.status || '', company_type: c.company_type || '',
+      date_of_creation: c.date_of_creation || '', address: c.registered_office_address || null,
+      sic_codes: c.sic_codes || []
+    };
+  });
+}
+
+// Post-freeze build 03: try the search biased to the register's own region
+// first (real region names like "Greater London"/"South East" narrow CH's
+// results usefully); several GOV.UK Covenant regions are military command
+// areas, not real places CH would match ("Wessex", "Highland", "Lowland"),
+// so a biased search returning nothing falls back to a plain name search
+// rather than ever reporting a false no-match. Never throws — resolves to
+// [] on total failure so the one-click flow always lands somewhere useful.
+async function _fetchCovenantCandidatesBiased(name, region) {
+  const loc = region ? _prettifySlug(region) : '';
+  if (loc) {
+    try {
+      const biased = await _fetchChAdvancedByName(name, loc);
+      if (biased.length) return biased;
+    } catch (e) { /* fall through to unbiased */ }
+  }
+  try {
+    return await _fetchChAdvancedByName(name, '');
+  } catch (e) {
+    return [];
+  }
+}
+
 async function runDetailLookup() {
   const input = document.getElementById('dp-lookup-input');
   const resultsEl = document.getElementById('dp-lookup-results');
@@ -4131,33 +4305,13 @@ async function runDetailLookup() {
   loading.textContent = 'Searching Companies House…';
   resultsEl.appendChild(loading);
   try {
-    let data, items;
+    let items;
     if (window._covenantBridgeSource) {
-      // Covenant bridge (Post-freeze build 02): the plain name-search endpoint
-      // used below never returns SIC codes at list level, but the candidate
-      // list here needs address + status + SIC together, so this route uses
-      // the SIC-rich advanced-search endpoint in name mode instead.
-      const params = new URLSearchParams();
-      params.append('name', q);
-      params.append('size', '10');
-      const resp = await fetch(CH_PROXY + '/ch-advanced?' + params.toString());
-      if (!resp.ok) {
-        resultsEl.innerHTML = '';
-        const err = document.createElement('div');
-        err.className = 'dp-lookup-empty';
-        err.textContent = 'Lookup failed (HTTP ' + resp.status + '). Try again.';
-        resultsEl.appendChild(err);
-        return;
-      }
-      data = await resp.json();
-      items = (data.companies || []).slice(0, 10).map(function(c) {
-        return {
-          title: c.name || '', company_number: c.company_number || '',
-          company_status: c.status || '', company_type: c.company_type || '',
-          date_of_creation: c.date_of_creation || '', address: c.registered_office_address || null,
-          sic_codes: c.sic_codes || []
-        };
-      });
+      // Covenant bridge: the plain name-search endpoint used below never
+      // returns SIC codes at list level, but this candidate list needs
+      // address + status + SIC together, so this path uses the SIC-rich
+      // advanced-search endpoint in name mode, biased to the register's region.
+      items = await _fetchCovenantCandidatesBiased(q, window._covenantBridgeSource.region);
     } else {
       const params = new URLSearchParams();
       params.append('q', q);
@@ -4172,7 +4326,7 @@ async function runDetailLookup() {
         resultsEl.appendChild(err);
         return;
       }
-      data = await resp.json();
+      const data = await resp.json();
       items = (data.items || []).slice(0, 10);
     }
     _lookupResults = items;
@@ -4184,79 +4338,7 @@ async function runDetailLookup() {
       resultsEl.appendChild(empty);
       return;
     }
-    items.forEach(function(item, idx) {
-      const name = item.title || item.company_name || item.name || '';
-      const num = item.company_number || '';
-      const status = item.company_status || '';
-      const type = item.company_type || '';
-      const date = item.date_of_creation || '';
-      const addr = item.address_snippet || ((item.address && [item.address.address_line_1, item.address.locality, item.address.postal_code].filter(Boolean).join(', ')) || '');
-      const metaParts = [];
-      if (num) metaParts.push('No. ' + num);
-      if (type) metaParts.push(type);
-      if (date) {
-        // Show just the year from date_of_creation, e.g. "1965-09-13" → "Inc. 1965"
-        const year = String(date).slice(0, 4);
-        if (/^\d{4}$/.test(year)) metaParts.push('Inc. ' + year);
-        else metaParts.push('Inc. ' + date);
-      }
-
-      const row = document.createElement('div');
-      row.className = 'dp-lookup-row';
-      const info = document.createElement('div');
-      info.className = 'dp-lookup-row-info';
-      const nm = document.createElement('div');
-      nm.className = 'dp-lookup-row-name';
-      nm.textContent = name;
-      const meta = document.createElement('div');
-      meta.className = 'dp-lookup-row-meta';
-      meta.textContent = metaParts.join(' · ');
-      // Add status badge if status is known
-      if (status) {
-        const badge = document.createElement('span');
-        badge.className = 'dp-lookup-row-status';
-        badge.textContent = status;
-        // Status-driven colour: active green, dissolved/liquidation red, others amber
-        const s = String(status).toLowerCase();
-        if (s === 'active') {
-          badge.style.cssText = 'display:inline-block;margin-left:0.5rem;padding:0.1rem 0.45rem;background:#2a9d4a;color:white;border-radius:3px;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;';
-        } else if (s.includes('dissolved') || s.includes('liquidation') || s.includes('receiver')) {
-          badge.style.cssText = 'display:inline-block;margin-left:0.5rem;padding:0.1rem 0.45rem;background:#c44;color:white;border-radius:3px;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;';
-        } else {
-          badge.style.cssText = 'display:inline-block;margin-left:0.5rem;padding:0.1rem 0.45rem;background:#d49b00;color:white;border-radius:3px;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;';
-        }
-        meta.appendChild(badge);
-      }
-      const addrEl = document.createElement('div');
-      addrEl.className = 'dp-lookup-row-addr';
-      addrEl.textContent = addr;
-      info.appendChild(nm);
-      info.appendChild(meta);
-      if (addr) info.appendChild(addrEl);
-      // SIC codes — present only for candidates from the advanced-search
-      // endpoint (Covenant bridge); the plain name-search branch never has these.
-      if (item.sic_codes && item.sic_codes.length) {
-        const sicEl = document.createElement('div');
-        sicEl.className = 'dp-lookup-row-addr';
-        sicEl.textContent = 'SIC ' + item.sic_codes.slice(0, 3).join(', ');
-        info.appendChild(sicEl);
-      }
-      const pickBtn = document.createElement('button');
-      pickBtn.type = 'button';
-      pickBtn.className = 'dp-lookup-pick';
-      pickBtn.textContent = 'Pick';
-      pickBtn.addEventListener('click', function() { pickLookupResult(idx); });
-      row.appendChild(info);
-      row.appendChild(pickBtn);
-      resultsEl.appendChild(row);
-    });
-    const total = data.total_results || items.length;
-    if (total > items.length) {
-      const hint = document.createElement('div');
-      hint.className = 'dp-lookup-hint';
-      hint.textContent = 'Showing first ' + items.length + ' of ' + total + ' matches. Refine the name to narrow.';
-      resultsEl.appendChild(hint);
-    }
+    _renderLookupRows(items, resultsEl);
   } catch (e) {
     resultsEl.innerHTML = '';
     const err = document.createElement('div');
