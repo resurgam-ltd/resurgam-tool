@@ -52,6 +52,19 @@ outright — that means a stale or partial deploy, not an acceptable variant.
 Never loosen this to "HEAD or an ancestor" — that would let a stale deploy
 pass a sentinel check meant to catch exactly that.
 
+LIVE-DEPLOY VERIFICATION DOCTRINE (2026-07-30): a deploy to an
+edge-distributed service is verified only after propagation. Allow a settle
+window, then verify with repeated, spaced requests covering both a
+known-good case and a known-boundary case, requiring consistency across the
+full sample. A single immediate query is never verification and never
+grounds for rollback on its own; on a first-query failure, sample before
+concluding.
+
+BRANCH CONTEXT DOCTRINE (2026-07-30): any repo write, and especially any
+cross-estate rollout, verifies the checked-out branch before writing and
+confirms the intended branch carries the change after pushing. File content
+alone is not verification of a rollout.
+
 # CONTEXT WALL
 No Nova asset, colour, key, or copy in this repo, ever, and the reverse. Origin
 separation from Nova's tooling is deliberate (resurgam-ltd.github.io vs Nova's
