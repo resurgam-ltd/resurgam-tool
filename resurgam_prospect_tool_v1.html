@@ -648,6 +648,10 @@ function _resetAllPerProspectFields() {
     delete currentProspect.headcountSource;
     delete currentProspect.headcountPeriod;
   }
+  // Post-freeze build 02: a Covenant bridge search opened but not picked
+  // must not attach to whatever prospect gets selected next — this flag is
+  // otherwise global, not scoped to the prospect that opened it.
+  window._covenantBridgeSource = null;
   _resetPerProspectEmailState();
 }
 
@@ -1415,10 +1419,13 @@ function renderCovenantList() {
 
   var capped = filtered.slice(0, 200);
   el.innerHTML = capped.map(function(b, idx) {
-    return '<div class="saved-item" style="cursor:default;">' +
+    return '<div class="saved-item" style="cursor:default;flex-wrap:wrap;">' +
       '<div><div class="si-name">' + b.name.replace(/</g, '&lt;') + '</div>' +
       '<div class="si-meta">' + _prettifySlug(b.region) + ' · ' + _prettifySlug(b.industry) + ' · ' + b.pledged.length + ' pledge' + (b.pledged.length === 1 ? '' : 's') + '</div></div>' +
-      '<button class="del-btn" style="color:var(--accent);font-size:1.1rem;" title="Add as prospect" onclick="addCovenantAsProspect(' + idx + ')">+</button>' +
+      '<div style="display:flex;align-items:center;gap:0.6rem;">' +
+      '<button class="dp-li-btn" title="Search Companies House for this business, confirm the match yourself" onclick="findCovenantAtCompaniesHouse(' + idx + ')">Find at Companies House</button>' +
+      '<a href="#" style="font-size:0.7rem;color:var(--muted);white-space:nowrap;" title="Skip the Companies House lookup; add with manual enrichment" onclick="addCovenantAsProspect(' + idx + ');return false;">Add without lookup</a>' +
+      '</div>' +
       '</div>';
   }).join('') || '<div class="loading-msg">No matches.</div>';
   if (filtered.length > capped.length) {
@@ -1442,11 +1449,113 @@ function addCovenantAsProspect(idx) {
     name: b.name, address: '', sector: 'defence_marine', tag: 'Covenant', headcount: 0, siteArea: 0,
     number: '', refNum: 'RSG-' + (Math.floor(Math.random() * 90000) + 10000),
     importSource: 'Covenant (GOV.UK)', airtableCompanyId: '', airtableSiteId: '',
+    covenantRegion: b.region || '', covenantIndustry: b.industry || '', covenantPledgeCount: (b.pledged && b.pledged.length) || 0,
     savedAt: new Date().toISOString()
   });
   localStorage.setItem('prospects_v2', JSON.stringify(savedProspects));
   _updatePipelineStatusBar();
   alert(b.name + ' added to the pipeline (Covenant confirmed via GOV.UK list).');
+}
+
+// Post-freeze build 02: Covenant entries get the full prospect treatment.
+// "Find at Companies House" seeds the shared detail panel exactly as a
+// Manual-tab entry does (name only, no CH data yet), then opens + auto-runs
+// the same CH lookup panel Manual entries use to "upgrade" to a CH-backed
+// record — seeded with the signatory name, suffixes cleaned. The owner's
+// candidate pick (in pickLookupResult) is the confirmation step; see
+// _applyCovenantConfirmation, which fires only when window._covenantBridgeSource
+// is set (cleared after one pick, so it never leaks into an unrelated Search
+// or Manual pick made later in the same session).
+function findCovenantAtCompaniesHouse(idx) {
+  var b = window._covenantFiltered && window._covenantFiltered[idx];
+  if (!b) return;
+
+  _resetAllPerProspectFields();
+  window._covenantBridgeSource = b;
+
+  currentProspect = { name: b.name, address: '', number: '', type: '', status: 'manual' };
+
+  document.getElementById('welcome-screen').style.display = 'none';
+  document.getElementById('detail-panel').style.display = 'block';
+
+  document.getElementById('dp-name').textContent = b.name;
+  document.getElementById('dp-meta').textContent = _buildDpMeta({ number: '', type: '', date_of_creation: '' });
+  var da = document.getElementById('dp-address');
+  da.value = '';
+  da.placeholder = 'Address not found — enter manually';
+  da.style.color = '';
+  document.getElementById('dp-contact').value = '';
+  document.getElementById('dp-job-title').value = '';
+  document.getElementById('dp-email').value = '';
+  var dpSector = document.getElementById('dp-sector');
+  if (dpSector) dpSector.value = 'defence_marine';
+  var dpTag = document.getElementById('dp-tag');
+  if (dpTag) dpTag.value = 'Covenant';
+  currentProspect.tag = 'Covenant';
+  renderQualifySignals();
+  renderCovenantMatch();
+  renderPersonaChips();
+  renderEmailVariantPreview();
+  renderPressureCost();
+
+  document.getElementById('dp-badges').innerHTML = '<span class="tag tag-active">Covenant — finding Companies House match…</span>';
+
+  var ofBtn = document.getElementById('dp-officers-btn');
+  if (ofBtn) ofBtn.style.display = 'none';
+  var acBtn = document.getElementById('dp-accounts-btn');
+  if (acBtn) acBtn.style.display = 'none';
+  _resetDetailOfficersPanel();
+
+  var lkBtn = document.getElementById('dp-lookup-btn');
+  if (lkBtn) lkBtn.style.display = '';
+  _resetDetailLookupPanel();
+  _hydrateDetailFromExistingSave();
+
+  var main = document.getElementById('main-area');
+  if (main && main.scrollTo) main.scrollTo(0, 0);
+
+  // Open the lookup panel pre-seeded with the cleaned name and auto-fire —
+  // same "type a name, look it up" flow Manual entries use, just driven
+  // programmatically instead of typed by hand.
+  toggleDetailLookup();
+  var lookupInput = document.getElementById('dp-lookup-input');
+  if (lookupInput) lookupInput.value = _cleanCompanyName(b.name);
+  runDetailLookup();
+}
+
+// Fires once, immediately after the owner picks a CH candidate that
+// originated from the Covenant bridge (pickLookupResult calls this when
+// window._covenantBridgeSource is set). The pick itself is the confirmation
+// — register data plus the owner's own identification of the match — so the
+// Covenant tag is forced (not just defaulted) and marked confirmed, and the
+// register's region/industry/pledge count are carried onto the record. This
+// does NOT touch _covenantMatchFor / renderCovenantMatch, the separate
+// automatic fuzzy cross-reference used the other direction (Search-tab
+// prospects flagged as a *possible* Covenant match) — that guard is unchanged.
+function _applyCovenantConfirmation(item) {
+  var b = window._covenantBridgeSource;
+  window._covenantBridgeSource = null; // one-shot: never applies to a later, unrelated pick
+  if (!currentProspect || !b) return;
+
+  var tagSel = document.getElementById('dp-tag');
+  if (tagSel) tagSel.value = 'Covenant';
+  currentProspect.tag = 'Covenant';
+  currentProspect.covenantConfirmed = true;
+  currentProspect.covenantRegion = b.region || '';
+  currentProspect.covenantIndustry = b.industry || '';
+  currentProspect.covenantPledgeCount = (b.pledged && b.pledged.length) || 0;
+
+  var badgesEl = document.getElementById('dp-badges');
+  if (!badgesEl) return;
+  badgesEl.innerHTML += '<span class="tag tag-target">Covenant confirmed (register + your ID)</span>';
+
+  // Dedupe, item 10: the actual merge happens in saveCurrentProspect (which
+  // already updates-in-place by CH number rather than duplicating) — this is
+  // just making that outcome visible to the owner before they save.
+  var already = savedProspects.some(function(p) { return p.number && item.company_number && p.number === item.company_number; });
+  if (already) {
+    badgesEl.innerHTML += '<span class="tag tag-dormant">Already in pipeline — saving will update the existing record, not duplicate it</span>';
+  }
 }
 
 // TODO (parked, low priority, do not build now — see KNOWN-GAPS.md): the
@@ -4022,21 +4131,50 @@ async function runDetailLookup() {
   loading.textContent = 'Searching Companies House…';
   resultsEl.appendChild(loading);
   try {
-    const params = new URLSearchParams();
-    params.append('q', q);
-    params.append('items_per_page', '10');
-    params.append('start_index', '0');
-    const resp = await fetch(CH_PROXY + '/search/companies?' + params.toString());
-    if (!resp.ok) {
-      resultsEl.innerHTML = '';
-      const err = document.createElement('div');
-      err.className = 'dp-lookup-empty';
-      err.textContent = 'Lookup failed (HTTP ' + resp.status + '). Try again.';
-      resultsEl.appendChild(err);
-      return;
+    let data, items;
+    if (window._covenantBridgeSource) {
+      // Covenant bridge (Post-freeze build 02): the plain name-search endpoint
+      // used below never returns SIC codes at list level, but the candidate
+      // list here needs address + status + SIC together, so this route uses
+      // the SIC-rich advanced-search endpoint in name mode instead.
+      const params = new URLSearchParams();
+      params.append('name', q);
+      params.append('size', '10');
+      const resp = await fetch(CH_PROXY + '/ch-advanced?' + params.toString());
+      if (!resp.ok) {
+        resultsEl.innerHTML = '';
+        const err = document.createElement('div');
+        err.className = 'dp-lookup-empty';
+        err.textContent = 'Lookup failed (HTTP ' + resp.status + '). Try again.';
+        resultsEl.appendChild(err);
+        return;
+      }
+      data = await resp.json();
+      items = (data.companies || []).slice(0, 10).map(function(c) {
+        return {
+          title: c.name || '', company_number: c.company_number || '',
+          company_status: c.status || '', company_type: c.company_type || '',
+          date_of_creation: c.date_of_creation || '', address: c.registered_office_address || null,
+          sic_codes: c.sic_codes || []
+        };
+      });
+    } else {
+      const params = new URLSearchParams();
+      params.append('q', q);
+      params.append('items_per_page', '10');
+      params.append('start_index', '0');
+      const resp = await fetch(CH_PROXY + '/search/companies?' + params.toString());
+      if (!resp.ok) {
+        resultsEl.innerHTML = '';
+        const err = document.createElement('div');
+        err.className = 'dp-lookup-empty';
+        err.textContent = 'Lookup failed (HTTP ' + resp.status + '). Try again.';
+        resultsEl.appendChild(err);
+        return;
+      }
+      data = await resp.json();
+      items = (data.items || []).slice(0, 10);
     }
-    const data = await resp.json();
-    const items = (data.items || []).slice(0, 10);
     _lookupResults = items;
     resultsEl.innerHTML = '';
     if (!items.length) {
@@ -4095,6 +4233,14 @@ async function runDetailLookup() {
       info.appendChild(nm);
       info.appendChild(meta);
       if (addr) info.appendChild(addrEl);
+      // SIC codes — present only for candidates from the advanced-search
+      // endpoint (Covenant bridge); the plain name-search branch never has these.
+      if (item.sic_codes && item.sic_codes.length) {
+        const sicEl = document.createElement('div');
+        sicEl.className = 'dp-lookup-row-addr';
+        sicEl.textContent = 'SIC ' + item.sic_codes.slice(0, 3).join(', ');
+        info.appendChild(sicEl);
+      }
       const pickBtn = document.createElement('button');
       pickBtn.type = 'button';
       pickBtn.className = 'dp-lookup-pick';
@@ -4166,6 +4312,11 @@ function pickLookupResult(idx) {
   if (officersBtn) officersBtn.style.display = '';
   const accountsBtn2 = document.getElementById('dp-accounts-btn');
   if (accountsBtn2) accountsBtn2.style.display = '';
+
+  // Post-freeze build 02: this pick is the confirmation step for a Covenant
+  // bridge search — force the tag, mark confirmed, attach register metadata.
+  // No-op (flag unset) for an ordinary Manual-tab or Search-tab lookup pick.
+  if (window._covenantBridgeSource) _applyCovenantConfirmation(item);
 
   // Close + clear the lookup panel; reset any officers panel state.
   _resetDetailLookupPanel();
@@ -4485,6 +4636,12 @@ async function saveCurrentProspect() {
   const formContact = (document.getElementById('dp-contact') || {}).value || '';
   const formJob     = (document.getElementById('dp-job-title') || {}).value || '';
   const formEmail   = (document.getElementById('dp-email') || {}).value || '';
+  // Same read-modify-write defence as `keep()` above, applied to the Covenant
+  // bridge fields: re-saving an already-confirmed record through an ordinary
+  // (non-Covenant) reselect must not blank out a confirmation set earlier.
+  const _existingByNumber = currentProspect.number
+    ? savedProspects.find(function(p) { return p.number && p.number === currentProspect.number; })
+    : null;
   const entry = {
     name: currentProspect.name,
     address:    keep(formAddress, currentProspect.address || currentProspect.siteAddress),
@@ -4506,6 +4663,12 @@ async function saveCurrentProspect() {
     location: (currentProspect.location && typeof currentProspect.location.lat === 'number' && typeof currentProspect.location.lng === 'number') ? currentProspect.location : null,
     airtableCompanyId: currentProspect.airtableCompanyId || '',
     airtableSiteId:    currentProspect.airtableSiteId    || '',
+    // Post-freeze build 02: register metadata carried onto the record when
+    // this prospect came through the Covenant bridge (empty/0 otherwise).
+    covenantConfirmed: !!(currentProspect.covenantConfirmed || (_existingByNumber && _existingByNumber.covenantConfirmed)),
+    covenantRegion: currentProspect.covenantRegion || (_existingByNumber && _existingByNumber.covenantRegion) || '',
+    covenantIndustry: currentProspect.covenantIndustry || (_existingByNumber && _existingByNumber.covenantIndustry) || '',
+    covenantPledgeCount: currentProspect.covenantPledgeCount || (_existingByNumber && _existingByNumber.covenantPledgeCount) || 0,
     savedAt: new Date().toISOString()
   };
 

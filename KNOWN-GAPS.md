@@ -5,24 +5,54 @@ v1 or because the right fix depends on information not yet available. Re-assess
 after the first real prospecting session — does any of these actually cost
 something, or is it still fine to leave parked.
 
-## Top of post-freeze candidate list
+## Shipped this batch (Fix Batch 02, 2026-07-30)
 
-- **AUTO-HEADCOUNT** (spec recorded 2026-07-29, build later on evidence from a
-  real prospecting session — NOT built now, feature freeze is in effect).
-  New Worker route on `resurgam-ch-proxy` hitting the Companies House
-  Documents API, fetching the latest filed accounts' iXBRL document, parsing
-  the average-employees disclosure out of it, and populating both the
-  Headcount field and the Pressure Cost panel automatically — no manual step
-  between a search result and generated proposal figures. Expected payoff:
-  removes the last manual step in the qualify workflow. Prerequisite
-  research before building: confirm the Documents API's auth model (likely
-  the same CH_KEY Basic auth already used elsewhere), iXBRL's actual
-  disclosure tag for average employees (not all filers use the same
-  taxonomy — small-company filers under FRS 105 may omit it entirely,
-  dormant/micro-entity accounts often don't file it at all), and a fail-soft
-  path for the (common) case where the disclosure isn't present, mirroring
-  the Covenant list's cache-and-fail-soft pattern rather than erroring per
-  prospect.
+- **AUTO-HEADCOUNT — SHIPPED** (was parked above as of Fix Batch 01;
+  post-freeze build 01, owner-authorised on evidence). `resurgam-ch-proxy`'s
+  `/headcount/{companyNumber}` route: filing-history lookup for the latest
+  accounts filing → document-metadata → document-content (iXBRL) →
+  server-side regex extraction of `AverageNumberEmployeesDuringPeriod` (and
+  taxonomy-prefix variants) → `{employees, period, accountsType}`, cached in
+  KV per company + made-up-to date. On prospect selection (never during list
+  render), the frontend auto-fills the Headcount field with provenance "N
+  employees, FY[year] accounts (Companies House)"; owner overtype always
+  wins and is what saves. Fail-soft coverage confirmed against real
+  companies during build and again during Covenant-bridge testing: dormant
+  accounts, micro-entity accounts with no employee note, and full accounts
+  that simply omit the disclosure (Tesco Stores Ltd, 00519500, live-tested)
+  all correctly fall through to the quick-pick range chips (1-9/10-49/
+  50-249/250+, midpoint drives Pressure Cost) rather than erroring or
+  silently showing nothing.
+
+- **Covenant bridge — SHIPPED** (post-freeze build 02, owner-directed).
+  Each Covenant-tab entry's primary action is now "Find at Companies
+  House": a CH name search (suffix-cleaned via `_cleanCompanyName`) against
+  `/ch-advanced?name=...` (the SIC-rich advanced-search endpoint, extended
+  from its original SIC-only mode so the candidate list can show address +
+  status + SIC together — the plain name-search endpoint used elsewhere
+  never returns SIC). The owner's candidate pick is the confirmation step;
+  it feeds into the same detail-panel machinery a Manual-tab CH lookup uses
+  (`pickLookupResult`), then forces the Covenant tag, marks it confirmed,
+  and carries the register's region/industry/pledge count onto the saved
+  record. Dedupe: picking a CH company already in the pipeline surfaces a
+  visible "already in pipeline" badge and updates that record in place
+  (existing `saveCurrentProspect` merge-by-number logic) rather than
+  duplicating. No match, or a non-company signatory (public bodies, trading
+  names): "Add without lookup" falls back to the bare-add path, still
+  Covenant-tagged and carrying the same region/industry/pledge metadata.
+  Live-tested end to end against real GOV.UK Covenant entries: Tesco Stores
+  Ltd (dedupe path exercised twice — second pick correctly flagged and
+  merged, not duplicated) and Vanguard Training and Security Ltd (clean
+  AUTO-HEADCOUNT success: "1 employees, FY2025 accounts").
+
+  Found and fixed in passing: Companies House's advanced-search endpoint
+  returns HTTP 404 (not 200 + empty items) when a name query genuinely
+  matches nothing. `/ch-advanced` now treats 404 as zero results. **The
+  same bug exists in `nova-proxy`'s identical `/ch-advanced` route** (this
+  route was originally cloned from there) — per this repo's shared-core
+  discipline that's normally a same-task fix in both, but nova-proxy is
+  Nova's live production estate, so that fix needs your go-ahead before it
+  lands there; flagging rather than pushing it silently.
 
 ## Other parked items
 
