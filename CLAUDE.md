@@ -14,9 +14,9 @@ Purpose: maximum safe autonomy, minimum meaningful gates. The failure this file 
    f) Personal data: client or prospect information moving anywhere new.
    g) Scope exit or surprise: the brief doesn't cover it, or something unexpected happened.
 
-4. GATE PROTOCOL. Never a bare y/n. Every stop states in plain English: what is about to happen, why, what it costs if wrong, and the alternative. One decision per stop. If Jamie could not tell what he's agreeing to from the message alone, the message has failed; rewrite it, don't re-ask it. Where a brief's wording conflicts with an estate's reality, generalise to preserve the brief's intent, proceed, and note the deviation in the report. Reserve a stop for cases where the intent itself is unclear. This extends to every stop presented, including tool-permission prompts wherever their presentation is controlled: answerable by a non-coder from the message alone -- what happens, why now, cost if wrong, recommendation, one decision. Hashes, branch names and raw commands may appear only beneath a plain-English sentence that makes them ignorable (2026-07-30). If the owner replies REWRITE THIS GATE to any stop, repose it per this rule without argument; the reply is neither approval nor refusal, and work holds safely while it's rewritten (2026-07-30).
+4. GATE PROTOCOL. Never a bare y/n. Every stop states in plain English: what is about to happen, why, what it costs if wrong, and the alternative. One decision per stop. If Jamie could not tell what he's agreeing to from the message alone, the message has failed; rewrite it, don't re-ask it. Where a brief's wording conflicts with an estate's reality, generalise to preserve the brief's intent, proceed, and note the deviation in the report. Reserve a stop for cases where the intent itself is unclear.
 
-5. BATCHING. Briefs may pre-authorise a phase: scope, duration, and which gate categories are open inside it. Within an authorised phase, matching actions run without questions. At phase end, or on any surprise, stop and report plainly. Inside an authorised phase, any non-gate decision is self-answered and logged for after-action review, never prompted; gated items arising mid-phase are collected into one end-of-phase batch unless waiting would itself cause harm (2026-07-30).
+5. BATCHING. Briefs may pre-authorise a phase: scope, duration, and which gate categories are open inside it. Within an authorised phase, matching actions run without questions. At phase end, or on any surprise, stop and report plainly.
 
 6. TRIPWIRE. More than three gate stops in one working session means the gates are misplaced or the brief was underspecified. Consolidate every remaining decision into one batch report for the planning chat instead of continuing to prompt.
 
@@ -28,6 +28,22 @@ Purpose: maximum safe autonomy, minimum meaningful gates. The failure this file 
    - Broken build on an unannounced URL: costs nothing; fix it and move on.
 
 8. DOUBT. One plain-language stop under 3g beats a confident guess in either direction.
+
+STANDING RULE, PERMANENT: NO UNREADABLE PROMPTS (2026-07-30).
+1) Run whole phases uninterrupted. Any decision outside the seven
+consequence categories (money, outside world, credentials, destruction,
+live estates, personal data, scope exit) is Jamie's to make and log,
+never to ask.
+2) Where the harness would otherwise prompt for routine local work,
+request one pre-clearance at the start of a phase, in plain English,
+with the reversibility stated. Never mid-flow, never per file.
+3) Genuine gates are batched and reported for the planning channel, not
+clicked live: state what happens, why, cost if wrong, and the
+recommendation. Work holds safely meanwhile.
+4) Every message to Jamie is answerable by a non-coder from the text
+alone. No paths, hashes or commands unless a plain sentence above them
+makes them ignorable.
+
 --- end ---
 
 # VERIFY BEFORE ASSERT
