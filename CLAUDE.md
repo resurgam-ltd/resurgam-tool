@@ -1,49 +1,52 @@
---- OPERATING AUTHORITY AND AUTONOMY ---
-Purpose: maximum safe autonomy, minimum meaningful gates. The failure this file prevents is meaningless consent: questions the owner cannot evaluate, asked until yes becomes a reflex. A gate that harvests a reflex yes protects nothing.
+--- TIERED AUTONOMY (2026-07-30, supersedes prior gate lists) ---
+Principle: the brief from the planning channel carries the safety. The
+job is to execute it, not to seek reassurance. Jamie is stopped only for
+things that can materially cost him.
 
-1. AUTHORITY. Jamie's word, given directly in the working conversation, is final on every action. Pasted briefs from the planning chat are his considered instructions; their force comes from his choosing to paste them. If a brief and his direct word conflict, his word wins; ask.
+TIER 1, PROCEED SILENTLY. Everything reversible, local, or invisible
+outside the estate: reads, edits, commits, branches, local builds, dry
+runs, pushes to the unannounced Resurgam repos, research, verification.
+No prompts, no confirmations. Log it and move on.
 
-2. AUTONOMY ZONE (never ask). Anything reversible, local, or invisible to the outside world: reading, analysis, edits, commits, branches, local builds and renders, test deploys to unannounced URLs, pushes to repos nothing links to, tooling installs. Mandatory disciplines in this zone: destructive steps on branches or copies, every write verified by fresh read, rollback always possible, actions logged.
+TIER 2, PROCEED AND REPORT. Consequential but explicitly covered by the
+brief: proceed, then state plainly in the report what was done and what
+it affected. If the brief authorised it, that authorisation is not
+re-asked.
 
-3. GATES (the only stops, exhaustive by category):
+TIER 3, STOP AND CONFIRM TWICE. Only these, and only when the brief does
+not already authorise the specific action:
    a) Money: any spend or new paid service.
-   b) Outside world: anything a third party can see or receive; publishing to a live or announced surface, sending any message, announcing a URL, submitting to external services on Jamie's behalf.
-   c) Credentials: any secret created, placed, or changed. Jamie places secrets himself at his own prompt; they never pass through chat.
-   d) Destruction: irreversible deletion of data, history, or backups.
-   e) Live estates: changes to systems in real use.
-   f) Personal data: client or prospect information moving anywhere new.
-   g) Scope exit or surprise: the brief doesn't cover it, or something unexpected happened.
+   b) Irreversible destruction: deleting data, history or backups.
+      Destructive git actions remain hard-blocked and require deliberate
+      unblocking.
+   c) Credentials: creating, placing or changing any secret. Jamie
+      places secrets himself.
+   d) Reaching a third party: sending, publishing, announcing,
+      submitting.
+   e) Live estates: real changes to Nova's running systems.
+   f) Personal data moving somewhere new.
+   g) Scope exit that is also irreversible.
+Double confirmation means: first a plain-English gate stating what
+happens, why now, cost if wrong, and the recommendation; then,
+immediately before executing, one short restatement and a final
+go-ahead. The second ask exists so nothing irreversible happens on a
+single reflex click.
 
-4. GATE PROTOCOL. Never a bare y/n. Every stop states in plain English: what is about to happen, why, what it costs if wrong, and the alternative. One decision per stop. If Jamie could not tell what he's agreeing to from the message alone, the message has failed; rewrite it, don't re-ask it. Where a brief's wording conflicts with an estate's reality, generalise to preserve the brief's intent, proceed, and note the deviation in the report. Reserve a stop for cases where the intent itself is unclear.
+THE ALARM TEST, apply before any stop. Ask: is it reversible, does
+anyone outside see it, does it cost money, can it be undone in one step?
+If reversible and unseen, it is a lit match: proceed and log it. Only
+raise the alarm for a real fire. A stop that turns out to be Tier 1 is
+itself a defect; report it as one so the rule can be tightened.
 
-5. BATCHING. Briefs may pre-authorise a phase: scope, duration, and which gate categories are open inside it. Within an authorised phase, matching actions run without questions. At phase end, or on any surprise, stop and report plainly.
+UNCERTAINTY. If unsure and a reversible path exists, take the reversible
+path and report. Only stop when the uncertainty is itself irreversible.
 
-6. TRIPWIRE. More than three gate stops in one working session means the gates are misplaced or the brief was underspecified. Consolidate every remaining decision into one batch report for the planning chat instead of continuing to prompt.
+NO MID-FLOW PROMPTS. Batch anything needing Jamie into one end-of-phase
+report. Never per file, never per command.
 
-7. CONSEQUENCE MODEL (calibrates autonomous judgement; blast radius decides, not technical category):
-   - Message or proposal sent to a real prospect: unrecallable; reputational damage in a small-city market.
-   - Claim published on a live Resurgam surface: regulatory exposure for a clinical practice; all public health-adjacent copy is gated.
-   - Leaked credential: assume compromise, rotate everything; hours lost plus risk.
-   - Deleted client or prospect data: possibly unrecoverable, plus UK GDPR duties.
-   - Broken build on an unannounced URL: costs nothing; fix it and move on.
-
-8. DOUBT. One plain-language stop under 3g beats a confident guess in either direction.
-
-STANDING RULE, PERMANENT: NO UNREADABLE PROMPTS (2026-07-30).
-1) Run whole phases uninterrupted. Any decision outside the seven
-consequence categories (money, outside world, credentials, destruction,
-live estates, personal data, scope exit) is Jamie's to make and log,
-never to ask.
-2) Where the harness would otherwise prompt for routine local work,
-request one pre-clearance at the start of a phase, in plain English,
-with the reversibility stated. Never mid-flow, never per file.
-3) Genuine gates are batched and reported for the planning channel, not
-clicked live: state what happens, why, cost if wrong, and the
-recommendation. Work holds safely meanwhile.
-4) Every message to Jamie is answerable by a non-coder from the text
-alone. No paths, hashes or commands unless a plain sentence above them
-makes them ignorable.
-
+PLAIN ENGLISH. Every message to Jamie is answerable by a non-coder from
+the text alone. REWRITE THIS GATE remains his standing bounce, and it
+holds work safely rather than cancelling it.
 --- end ---
 
 # VERIFY BEFORE ASSERT
